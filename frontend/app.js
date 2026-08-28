@@ -1448,6 +1448,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const taskForm = document.getElementById('task-form');
     if (taskForm) taskForm.addEventListener('submit', handleTaskFormSubmit);
 
+    // Live Date Display Helper
+    function updateLiveDateDisplay() {
+        const el = document.getElementById('current-date-display');
+        if (!el) return;
+        const now = new Date();
+        const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+        el.textContent = now.toLocaleDateString('en-US', options);
+    }
+
     // 9. Initial App Load & Auto Rollover
     updateLiveDateDisplay();
     renderGamificationHeader();
