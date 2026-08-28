@@ -1,6 +1,11 @@
 from flask import Blueprint, request, jsonify, g
-from api.models.task import TaskModel
-from api.auth import require_auth
+
+try:
+    from api.models.task import TaskModel
+    from api.auth import require_auth
+except ImportError:
+    from models.task import TaskModel
+    from auth import require_auth
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 

@@ -1,5 +1,9 @@
 import datetime
-from api.db import get_db_connection, get_engine_name
+
+try:
+    from api.db import get_db_connection, get_engine_name
+except ImportError:
+    from db import get_db_connection, get_engine_name
 
 def calculate_level_info(total_xp):
     if total_xp < 0:

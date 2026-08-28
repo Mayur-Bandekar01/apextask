@@ -2,23 +2,35 @@ import os
 import sys
 from pathlib import Path
 
-# Ensure root directory is in sys.path
-root_dir = Path(__file__).resolve().parent.parent
-if str(root_dir) not in sys.path:
-    sys.path.insert(0, str(root_dir))
+# Add current api directory and project root to sys.path
+api_dir = Path(__file__).resolve().parent
+root_dir = api_dir.parent
+for p in [str(api_dir), str(root_dir)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from flask import Flask, send_from_directory, jsonify, request
 from flask_cors import CORS
 
-from api.config import Config
-from api.db import init_db, get_engine_name
-from api.auth import auth_bp
-from api.tasks import tasks_bp
-from api.records import records_bp
-from api.gamification import gamification_bp
+try:
+    from api.config import Config
+    from api.db import init_db, get_engine_name
+    from api.auth import auth_bp
+    from api.tasks import tasks_bp
+    from api.records import records_bp
+    from api.gamification import gamification_bp
+except ImportError:
+    from config import Config
+    from db import init_db, get_engine_name
+    from auth import auth_bp
+    from tasks import tasks_bp
+    from records import records_bp
+    from gamification import gamification_bp
 
 # Define frontend static directory
 frontend_dir = root_dir / 'frontend'
+if not frontend_dir.exists():
+    frontend_dir = api_dir.parent / 'frontend'
 
 def create_app():
     app = Flask(__name__, static_folder=str(frontend_dir), static_url_path='')

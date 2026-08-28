@@ -1,8 +1,14 @@
 import random
 from flask import Blueprint, request, jsonify, g
-from api.models.user import UserModel
-from api.models.badge import BadgeModel
-from api.auth import require_auth
+
+try:
+    from api.models.user import UserModel
+    from api.models.badge import BadgeModel
+    from api.auth import require_auth
+except ImportError:
+    from models.user import UserModel
+    from models.badge import BadgeModel
+    from auth import require_auth
 
 gamification_bp = Blueprint('gamification', __name__, url_prefix='/api')
 

@@ -3,10 +3,19 @@ import sqlite3
 import pymysql
 from pymysql.cursors import DictCursor
 from pathlib import Path
-from api.config import Config
+
+try:
+    from api.config import Config
+except ImportError:
+    from config import Config
 
 DB_ENGINE = None
-LOCAL_SQLITE_PATH = Path(__file__).resolve().parent.parent / 'todo_app.db'
+
+# On Vercel Serverless / AWS Lambda, filesystem is read-only except /tmp
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    LOCAL_SQLITE_PATH = Path('/tmp/todo_app.db')
+else:
+    LOCAL_SQLITE_PATH = Path(__file__).resolve().parent.parent / 'todo_app.db'
 
 class SQLiteCursorWrapper:
     """Wraps sqlite3.Cursor to provide a DictCursor and %s parameter compatibility."""

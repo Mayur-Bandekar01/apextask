@@ -1,6 +1,10 @@
 import datetime
 import calendar
-from api.db import get_db_connection
+
+try:
+    from api.db import get_db_connection
+except ImportError:
+    from db import get_db_connection
 
 class RecordModel:
     @staticmethod

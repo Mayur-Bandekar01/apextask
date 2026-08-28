@@ -1,7 +1,13 @@
 import datetime
-from api.db import get_db_connection
-from api.models.user import UserModel
-from api.models.badge import BadgeModel
+
+try:
+    from api.db import get_db_connection
+    from api.models.user import UserModel
+    from api.models.badge import BadgeModel
+except ImportError:
+    from db import get_db_connection
+    from models.user import UserModel
+    from models.badge import BadgeModel
 
 XP_MAP = {
     "low": 10,

@@ -3,8 +3,13 @@ import functools
 import jwt
 import bcrypt
 from flask import Blueprint, request, jsonify, g
-from api.config import Config
-from api.models.user import UserModel
+
+try:
+    from api.config import Config
+    from api.models.user import UserModel
+except ImportError:
+    from config import Config
+    from models.user import UserModel
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 

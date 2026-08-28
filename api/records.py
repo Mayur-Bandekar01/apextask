@@ -1,7 +1,12 @@
 import datetime
 from flask import Blueprint, request, jsonify, g
-from api.models.record import RecordModel
-from api.auth import require_auth
+
+try:
+    from api.models.record import RecordModel
+    from api.auth import require_auth
+except ImportError:
+    from models.record import RecordModel
+    from auth import require_auth
 
 records_bp = Blueprint('records', __name__, url_prefix='/api/records')
 

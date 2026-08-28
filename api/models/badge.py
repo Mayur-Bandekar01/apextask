@@ -1,5 +1,9 @@
 import datetime
-from api.db import get_db_connection
+
+try:
+    from api.db import get_db_connection
+except ImportError:
+    from db import get_db_connection
 
 ALL_BADGES = {
     "First Step": {
