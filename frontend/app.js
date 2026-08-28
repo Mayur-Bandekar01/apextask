@@ -399,8 +399,25 @@ async function loadTodayTasks() {
 function updateTabBadges() {
     const todayBadge = document.getElementById('badge-today-count');
     if (todayBadge) {
-        const pendingCount = state.tasks.filter(t => t.status === 'pending').length;
+        const pendingCount = (state.tasks || []).filter(t => t.status === 'pending').length;
         todayBadge.textContent = pendingCount;
+    }
+
+    const missedBadge = document.getElementById('badge-missed-count');
+    if (missedBadge) {
+        const missedCount = (state.missedTasks || []).length;
+        missedBadge.textContent = missedCount;
+        if (missedCount > 0) {
+            missedBadge.classList.remove('hidden');
+        } else {
+            missedBadge.classList.add('hidden');
+        }
+    }
+
+    const challengeBadge = document.getElementById('badge-challenges-count');
+    if (challengeBadge) {
+        challengeBadge.classList.add('hidden');
+        challengeBadge.textContent = '';
     }
 }
 
@@ -646,11 +663,13 @@ async function handleToggleComplete(taskId) {
             }
 
             await loadTodayTasks();
-            if (state.currentTab === 'challenges') loadChallenges();
+            await loadUserProfile();
+            updateTabBadges();
             if (state.currentTab === 'weekly') loadWeeklyDashboard();
             if (state.currentTab === 'monthly') loadMonthlyDashboard();
             if (state.currentTab === 'yearly') loadYearlyDashboard();
             if (state.currentTab === 'shame') loadShameBoard();
+            if (state.currentTab === 'badges') loadBadgesShowcase();
         }
     } catch (e) {
         showToast(e.message, 'danger');
@@ -756,9 +775,11 @@ async function confirmDeleteTask() {
             closeDeleteConfirmModal();
             await loadTodayTasks();
             await loadUserProfile();
+            updateTabBadges();
             if (state.currentTab === 'shame') loadShameBoard();
             if (state.currentTab === 'weekly') loadWeeklyDashboard();
             if (state.currentTab === 'monthly') loadMonthlyDashboard();
+            if (state.currentTab === 'yearly') loadYearlyDashboard();
         }
     } catch (e) {
         showToast(e.message, 'danger');
@@ -908,6 +929,11 @@ async function handleTaskFormSubmit(e) {
         closeTaskModal();
         await loadTodayTasks();
         await loadUserProfile();
+        updateTabBadges();
+        if (state.currentTab === 'weekly') loadWeeklyDashboard();
+        if (state.currentTab === 'monthly') loadMonthlyDashboard();
+        if (state.currentTab === 'yearly') loadYearlyDashboard();
+        if (state.currentTab === 'shame') loadShameBoard();
     } catch (err) {
         showToast(err.message, 'danger');
     }
@@ -1415,17 +1441,10 @@ async function loadChallenges() {
 }
 
 function renderChallenges() {
-    const dailyContainer = document.getElementById('daily-challenges-container');
-    const weeklyContainer = document.getElementById('weekly-challenges-container');
     const badgeCount = document.getElementById('badge-challenges-count');
-
-    const challenges = state.challenges || [];
-    const daily = challenges.filter(c => c.challenge_type === 'daily');
-    const weekly = challenges.filter(c => c.challenge_type === 'weekly');
-
-    const pendingClaims = challenges.filter(c => c.is_completed && !c.is_claimed).length;
     if (badgeCount) {
-        badgeCount.textContent = pendingClaims > 0 ? pendingClaims : challenges.filter(c => !c.is_claimed).length;
+        badgeCount.classList.add('hidden');
+        badgeCount.textContent = '';
     }
 
     const renderCard = (c) => `
