@@ -97,10 +97,10 @@ def get_db_connection():
             'charset': 'utf8mb4'
         }
 
-        # Add SSL configuration for Cloud MySQL (PlanetScale, Railway, Aiven, etc.)
+        # Add SSL configuration for Cloud MySQL (TiDB Cloud, PlanetScale, Railway, Aiven, etc.)
         if Config.DB_SSL_CA:
             connect_args['ssl'] = {'ca': Config.DB_SSL_CA}
-        elif any(cloud_host in Config.DB_HOST.lower() for cloud_host in ['psdb.cloud', 'railway', 'aiven', 'supabase', 'neon']):
+        elif Config.DB_HOST not in ('localhost', '127.0.0.1', '0.0.0.0') and not Config.DB_HOST.startswith('192.168.'):
             connect_args['ssl'] = {'ssl': {}}
 
         conn = pymysql.connect(**connect_args)
