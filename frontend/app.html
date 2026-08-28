@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEXTASK — Ultimate Gamified Productivity Suite</title>
+    <meta name="description" content="Production-Grade Gamified To-Do App with Real MySQL Persistence, Cross-Day Sync, and RPG Velocity Analytics">
+
+    <!-- Google Fonts: Sora (Headings) & Inter (UI) & JetBrains Mono (Data/XP) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome Pro / Free CDN Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Chart.js CDN for Analytics Trends -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Canvas Confetti CDN for Level-up & Badge Celebrations -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <!-- Custom Modular Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Ambient Background Lighting -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Main App Container -->
+    <div class="app-layout">
+        
+        <!-- Top Gamification & Navigation Header -->
+        <header class="app-header glass-card">
+            <div class="header-left">
+                <div class="brand">
+                    <div class="brand-icon">
+                        <i class="fa-solid fa-bolt-lightning"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h1>APEX<span>TASK</span></h1>
+                        <span class="brand-badge" id="db-engine-badge"><i class="fa-solid fa-database"></i> MySQL Cloud</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gamification Profile Bar -->
+            <div class="header-gamification">
+                <!-- User Title & Slacker Warning -->
+                <div class="user-meta">
+                    <div class="user-title-pill" id="user-title-badge">
+                        <i class="fa-solid fa-crown"></i> <span id="user-title-text">Productivity Architect</span>
+                    </div>
+                    <div class="level-risk-badge hidden" id="level-risk-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Level at Risk!
+                    </div>
+                </div>
+
+                <!-- Level & Live XP Bar -->
+                <div class="xp-progression-wrapper">
+                    <div class="xp-info-row">
+                        <div class="level-indicator">
+                            <span class="lvl-tag">LVL</span>
+                            <span class="lvl-number" id="user-level">1</span>
+                        </div>
+                        <div class="xp-stats">
+                            <span class="xp-current" id="xp-current">0</span> / <span class="xp-target" id="xp-target">100</span> XP
+                            <span class="xp-percent-tag" id="xp-percent">(0%)</span>
+                        </div>
+                    </div>
+                    <div class="xp-progress-track">
+                        <div class="xp-progress-fill" id="xp-bar-fill" style="width: 0%;">
+                            <div class="xp-progress-glow"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Streak Counter -->
+                <div class="streak-widget" id="streak-widget" title="Daily Completion Streak">
+                    <div class="streak-flame">
+                        <i class="fa-solid fa-fire"></i>
+                    </div>
+                    <div class="streak-details">
+                        <span class="streak-count" id="streak-count">0</span>
+                        <span class="streak-label">STREAK</span>
+                    </div>
+                </div>
+
+                <!-- Reward Chest Tracker -->
+                <div class="chest-widget" id="chest-trigger" title="Mystery Reward Chest (Every 10 Tasks)">
+                    <div class="chest-icon-wrapper" id="chest-icon-wrapper">
+                        <i class="fa-solid fa-box-open" id="chest-box-icon"></i>
+                    </div>
+                    <div class="chest-details">
+                        <span class="chest-count" id="chest-progress-text">0/10</span>
+                        <span class="chest-label">CHEST</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header Controls: Theme & Sound & Add & Logout -->
+            <div class="header-right">
+                <div class="sound-toggle-btn" id="sound-toggle" title="Toggle Sound FX">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </div>
+
+                <div class="theme-selector" id="theme-selector">
+                    <button class="theme-pill active" data-theme-val="dark" title="Dark Obsidian Theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <button class="theme-pill" data-theme-val="aura" title="Aura Cyberpunk Theme">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                    <button class="theme-pill" data-theme-val="light" title="Light Frosted Theme">
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
+                </div>
+
+                <button class="btn btn-primary glow-button" id="btn-open-add-task">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>New Task</span>
+                </button>
+
+                <button class="btn btn-glass btn-logout" id="btn-logout" title="Log Out of Session">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs Bar -->
+        <nav class="nav-bar-container glass-card">
+            <div class="nav-tabs-list">
+                <button class="nav-tab active" data-tab="today">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Today's Focus</span>
+                    <span class="tab-badge" id="badge-today-count">0</span>
+                </button>
+                <button class="nav-tab" data-tab="weekly">
+                    <i class="fa-solid fa-chart-simple"></i>
+                    <span>Weekly Velocity</span>
+                </button>
+                <button class="nav-tab" data-tab="monthly">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>Monthly Heatmap</span>
+                </button>
+                <button class="nav-tab" data-tab="yearly">
+                    <i class="fa-solid fa-border-all"></i>
+                    <span>Yearly Matrix</span>
+                </button>
+                <button class="nav-tab" data-tab="shame">
+                    <i class="fa-solid fa-skull-crossbones"></i>
+                    <span>Shame Board</span>
+                    <span class="tab-badge badge-danger hidden" id="badge-missed-count">0</span>
+                </button>
+                <button class="nav-tab" data-tab="badges">
+                    <i class="fa-solid fa-medal"></i>
+                    <span>Trophy Vault</span>
+                    <span class="tab-badge badge-gold" id="badge-unlocked-count">0</span>
+                </button>
+            </div>
+
+            <div class="nav-meta-info" id="nav-date-indicator">
+                <i class="fa-regular fa-clock"></i>
+                <span id="current-date-display">Today</span>
+            </div>
+        </nav>
+
+        <!-- Main Content Workspace Area -->
+        <main class="main-content-view" id="main-view-container">
+
+            <!-- SECTION 1 & 2: TODAY'S FOCUS VIEW -->
+            <section id="view-today" class="view-section active-view">
+                <!-- Action Controls Bar -->
+                <div class="section-toolbar glass-card">
+                    <div class="search-box-wrapper">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="task-search-input" class="search-input" placeholder="Search missions, tags, notes...">
+                    </div>
+
+                    <div class="filter-pills-group">
+                        <button class="filter-pill active" data-filter="all">All</button>
+                        <button class="filter-pill" data-filter="pending">Pending</button>
+                        <button class="filter-pill" data-filter="complete">Completed</button>
+                        <button class="filter-pill" data-filter="high">High Priority</button>
+                        <button class="filter-pill" data-filter="rolled">Rolled Over</button>
+                    </div>
+
+                    <div class="toolbar-actions">
+                        <button class="btn btn-sm btn-glass" id="btn-manual-rollover" title="Check & Rollover Past Incomplete Tasks">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>Sync Rollover</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tasks Cards Grid / List -->
+                <div class="tasks-grid-container" id="today-task-list">
+                    <!-- Dynamic task cards inserted here -->
+                </div>
+
+                <!-- Empty State for Today -->
+                <div class="empty-state-card glass-card hidden" id="today-empty-state">
+                    <div class="empty-icon"><i class="fa-solid fa-sparkles"></i></div>
+                    <h3>Your Slate is Clean!</h3>
+                    <p>No tasks found matching your filter criteria. Ready to forge new achievements?</p>
+                    <button class="btn btn-primary mt-3" id="btn-empty-add-task">
+                        <i class="fa-solid fa-plus"></i> Create First Mission
+                    </button>
+                </div>
+            </section>
+
+            <!-- SECTION 3: WEEKLY VELOCITY VIEW -->
+            <section id="view-weekly" class="view-section hidden">
+                <div class="view-header">
+                    <div class="view-title-group">
+                        <h2>Weekly Velocity Dashboard</h2>
+                        <p class="view-subtitle" id="weekly-range-display">7-Day Completion Flow & Focus Momentum</p>
+                    </div>
+                    <div class="date-stepper-controls">
+                        <button class="btn-step" id="btn-prev-week" title="Previous Week"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-glass" id="btn-current-week">This Week</button>
+                        <button class="btn-step" id="btn-next-week" title="Next Week"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Best Day & Total Summary Banner -->
+                <div class="weekly-banner-card glass-card">
+                    <div class="banner-stat">
+                        <i class="fa-solid fa-trophy text-gold"></i>
+                        <div>
+                            <span class="banner-label">Most Productive Day</span>
+                            <h4 id="weekly-best-day-text">Calculating momentum...</h4>
+                        </div>
+                    </div>
+                    <div class="banner-stat">
+                        <i class="fa-solid fa-bolt text-indigo"></i>
+                        <div>
+                            <span class="banner-label">Weekly XP Conquered</span>
+                            <h4 id="weekly-total-xp">+0 XP</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7 Day Velocity Column Grid -->
+                <div class="weekly-columns-grid" id="weekly-grid-container">
+                    <!-- Dynamic 7 day cards inserted here -->
+                </div>
+            </section>
+
+            <!-- SECTION 3: MONTHLY HEATMAP VIEW -->
+            <section id="view-monthly" class="view-section hidden">
+                <div class="view-header">
+                    <div class="view-title-group">
+                        <h2>Monthly Activity Heatmap</h2>
+                        <p class="view-subtitle" id="monthly-title-display">Visualizing consistency across every day of the month</p>
+                    </div>
+                    <div class="date-stepper-controls">
+                        <button class="btn-step" id="btn-prev-month" title="Previous Month"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-glass" id="btn-current-month">Current Month</button>
+                        <button class="btn-step" id="btn-next-month" title="Next Month"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Monthly Statistics Row -->
+                <div class="stats-overview-row">
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-indigo"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="monthly-stat-completed">0</span>
+                            <span class="stat-caption">Total Missions Done</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-emerald"><i class="fa-solid fa-chart-line"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="monthly-stat-avg">0.0</span>
+                            <span class="stat-caption">Daily Average Tasks</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-amber"><i class="fa-solid fa-fire"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="monthly-stat-streak">0 Days</span>
+                            <span class="stat-caption">Active Peak Streak</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-purple"><i class="fa-solid fa-award"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="monthly-stat-peak">--</span>
+                            <span class="stat-caption">Peak Single Day</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly 31-Day Heatmap Matrix Grid -->
+                <div class="heatmap-panel glass-card">
+                    <div class="heatmap-legend">
+                        <span>Less Active</span>
+                        <div class="legend-scale">
+                            <div class="legend-cell intensity-0" title="0 tasks"></div>
+                            <div class="legend-cell intensity-1" title="1-2 tasks"></div>
+                            <div class="legend-cell intensity-2" title="3-4 tasks"></div>
+                            <div class="legend-cell intensity-3" title="5-7 tasks"></div>
+                            <div class="legend-cell intensity-4" title="8+ tasks"></div>
+                        </div>
+                        <span>High Velocity</span>
+                    </div>
+
+                    <div class="monthly-matrix-grid" id="monthly-heatmap-matrix">
+                        <!-- Dynamic month cells inserted here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: YEARLY PRODUCTIVITY MATRIX & CHART -->
+            <section id="view-yearly" class="view-section hidden">
+                <div class="view-header">
+                    <div class="view-title-group">
+                        <h2>Yearly Performance Matrix</h2>
+                        <p class="view-subtitle" id="yearly-title-display">365-Day Macro Overview & Progression Trajectory</p>
+                    </div>
+                    <div class="date-stepper-controls">
+                        <button class="btn-step" id="btn-prev-year" title="Previous Year"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="btn btn-sm btn-glass" id="btn-current-year">This Year</button>
+                        <button class="btn-step" id="btn-next-year" title="Next Year"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Annual Key Metrics -->
+                <div class="stats-overview-row">
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-indigo"><i class="fa-solid fa-trophy"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="yearly-stat-total">0</span>
+                            <span class="stat-caption">Total Annual Tasks</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-emerald"><i class="fa-solid fa-stopwatch"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="yearly-stat-focus">0 hrs</span>
+                            <span class="stat-caption">Deep Focus Time</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-amber"><i class="fa-solid fa-bolt"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="yearly-stat-xp">0 XP</span>
+                            <span class="stat-caption">Annual XP Accumulated</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon text-purple"><i class="fa-solid fa-medal"></i></div>
+                        <div class="stat-body">
+                            <span class="stat-number" id="yearly-stat-badges">0</span>
+                            <span class="stat-caption">Trophies Unlocked</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 365 Pixel Matrix -->
+                <div class="heatmap-panel glass-card mb-4">
+                    <h3 class="panel-subtitle"><i class="fa-solid fa-cubes-stacked"></i> 365-Day GitHub-Style Heat Grid</h3>
+                    <div class="yearly-pixel-grid" id="yearly-heatmap-grid">
+                        <!-- Dynamic 365 pixels inserted here -->
+                    </div>
+                </div>
+
+                <!-- Monthly Trajectory Line Chart (Chart.js) -->
+                <div class="chart-panel glass-card">
+                    <h3 class="panel-subtitle"><i class="fa-solid fa-chart-line"></i> 12-Month Momentum Trajectory</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="yearlyTrajectoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: SHAME BOARD & PROCRASTINATION VIEW -->
+            <section id="view-shame" class="view-section hidden">
+                <div class="view-header">
+                    <div class="view-title-group">
+                        <h2 class="shame-title"><i class="fa-solid fa-triangle-exclamation"></i> Hall of Procrastination & Shame</h2>
+                        <p class="view-subtitle">Tasks left behind in the dust. Every missed deadline bleeds XP.</p>
+                    </div>
+                </div>
+
+                <div class="shame-cards-container" id="shame-task-list">
+                    <!-- Dynamic shame cards inserted here -->
+                </div>
+
+                <div class="empty-state-card glass-card hidden" id="shame-empty-state">
+                    <div class="empty-icon text-emerald"><i class="fa-solid fa-shield-heart"></i></div>
+                    <h3>Clean Slate & Zero Shame!</h3>
+                    <p>No overdue or missed tasks detected. Your discipline is unwavering!</p>
+                </div>
+            </section>
+
+            <!-- SECTION 4: ACHIEVEMENTS & BADGES VIEW -->
+            <section id="view-badges" class="view-section hidden">
+                <div class="view-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="view-title-group">
+                        <h2>Trophy Vault & Milestones</h2>
+                        <p class="view-subtitle">Earn prestigious medals by executing consistently and conquering challenges.</p>
+                    </div>
+                    <button class="btn btn-glass" id="btn-reset-all-gamification" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">
+                        <i class="fa-solid fa-rotate-left"></i> Reset Level & Milestones
+                    </button>
+                </div>
+
+                <!-- Badges Grid -->
+                <div class="badges-grid-container" id="badges-container">
+                    <!-- Dynamic badge items inserted here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ==================== MODALS & DRAWERS ==================== -->
+
+    <!-- Add / Edit Task Drawer / Slide-in Panel -->
+    <div class="modal-backdrop hidden" id="task-modal-backdrop">
+        <div class="slide-panel glass-card" id="task-modal-panel">
+            <div class="panel-header">
+                <h3 id="task-modal-title"><i class="fa-solid fa-plus"></i> Create New Mission</h3>
+                <button class="btn-close-modal" id="btn-close-task-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="task-form" class="task-form">
+                <input type="hidden" id="task-form-id" value="">
+
+                <div class="form-group">
+                    <label for="task-form-title">Task Title <span class="required">*</span></label>
+                    <input type="text" id="task-form-title" class="form-control" placeholder="e.g., Deploy MySQL schema to production" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Priority Tier</label>
+                    <div class="priority-selector-pills">
+                        <label class="priority-radio-label priority-low">
+                            <input type="radio" name="task_priority" value="low">
+                            <span class="pill-content"><i class="fa-solid fa-leaf"></i> Low (+10 XP)</span>
+                        </label>
+                        <label class="priority-radio-label priority-medium">
+                            <input type="radio" name="task_priority" value="medium" checked>
+                            <span class="pill-content"><i class="fa-solid fa-shield"></i> Medium (+25 XP)</span>
+                        </label>
+                        <label class="priority-radio-label priority-high">
+                            <input type="radio" name="task_priority" value="high">
+                            <span class="pill-content"><i class="fa-solid fa-fire"></i> High (+50 XP)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group flex-1">
+                        <label for="task-form-date">Execution Date</label>
+                        <input type="date" id="task-form-date" class="form-control">
+                    </div>
+                    <div class="form-group flex-1">
+                        <label for="task-form-deadline">Strict Deadline (Optional)</label>
+                        <input type="datetime-local" id="task-form-deadline" class="form-control">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="task-form-notes">Mission Notes & Sub-details</label>
+                    <textarea id="task-form-notes" class="form-control" rows="3" placeholder="Context, checklists, or reference links..."></textarea>
+                </div>
+
+                <div class="panel-footer">
+                    <button type="button" class="btn btn-glass" id="btn-cancel-task-form">Cancel</button>
+                    <button type="submit" class="btn btn-primary glow-button" id="btn-submit-task-form">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span id="task-form-submit-text">Save Task</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Task Lifecycle History Logs Modal -->
+    <div class="modal-backdrop hidden" id="logs-modal-backdrop">
+        <div class="modal-card glass-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-timeline"></i> Lifecycle History: <span id="logs-task-title">Task</span></h3>
+                <button class="btn-close-modal" id="btn-close-logs-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="timeline-container" id="logs-timeline-list">
+                    <!-- Dynamic timeline logs -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Drilldown Tasks Modal -->
+    <div class="modal-backdrop hidden" id="date-tasks-modal-backdrop">
+        <div class="modal-card glass-card">
+            <div class="modal-header">
+                <h3 id="date-tasks-modal-title"><i class="fa-solid fa-calendar-day"></i> Tasks for Date</h3>
+                <button class="btn-close-modal" id="btn-close-date-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="date-tasks-list" id="date-tasks-modal-list">
+                    <!-- Dynamic tasks for selected date -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mystery Reward Chest Celebration Modal -->
+    <div class="modal-backdrop hidden" id="chest-modal-backdrop">
+        <div class="chest-modal-card glass-card">
+            <div class="chest-modal-header">
+                <button class="btn-close-modal" id="btn-close-chest-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="chest-stage">
+                <div class="chest-animation-box" id="chest-animation-box">
+                    <div class="chest-sunburst"></div>
+                    <i class="fa-solid fa-box-open chest-big-icon" id="chest-big-icon"></i>
+                </div>
+                <div class="chest-reward-content" id="chest-reward-content">
+                    <h3 class="chest-celebrate-title">REWARD UNLOCKED!</h3>
+                    <div class="reward-pill" id="chest-reward-pill">
+                        <i class="fa-solid fa-crown" id="chest-reward-icon"></i>
+                        <span id="chest-reward-title">+100 Grand XP</span>
+                    </div>
+                    <p class="chest-reward-desc" id="chest-reward-desc">A golden bounty of sheer momentum has empowered your level!</p>
+                    <button class="btn btn-primary glow-button mt-4" id="btn-claim-reward">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Claim Reward
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-backdrop hidden" id="delete-modal-backdrop">
+        <div class="modal-card glass-card" style="max-width: 400px; text-align: center;">
+            <div class="modal-header" style="justify-content: center;">
+                <h3 style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> Delete Task</h3>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+                <p id="delete-modal-text" style="color: var(--text-secondary); font-size: 13.5px;">Are you sure you want to permanently delete this task?</p>
+                <div style="display: flex; justify-content: center; gap: 12px; margin-top: 10px;">
+                    <button class="btn btn-glass" id="btn-cancel-delete">Cancel</button>
+                    <button class="btn btn-primary" id="btn-confirm-delete" style="background: #ef4444; border-color: #ef4444;">
+                        <i class="fa-solid fa-trash"></i> Delete Mission
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>

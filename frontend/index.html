@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — APEXTASK Ultimate To-Do Suite</title>
+    <meta name="description" content="Secure Single-User Login to APEXTASK Gamified Productivity Suite">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+    <!-- Ambient Background Lighting -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <div class="login-wrapper">
+        <div class="login-card glass-card" id="login-card">
+            <!-- Brand Header -->
+            <div class="login-header">
+                <div class="login-brand-icon">
+                    <i class="fa-solid fa-bolt-lightning"></i>
+                </div>
+                <h1 class="login-title">APEX<span>TASK</span></h1>
+                <p class="login-subtitle">Cloud Sync & Gamified Execution Suite</p>
+            </div>
+
+            <!-- Error Banner -->
+            <div class="login-error-banner hidden" id="login-error-banner">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span id="login-error-text">Invalid username or password</span>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="login-username">Operator Username</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user input-icon"></i>
+                        <input type="text" id="login-username" class="form-control" placeholder="Enter username (e.g. mayur)" autocomplete="username" required autofocus>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="login-password">Access Key / Password</label>
+                    <div class="input-with-icon password-input-wrapper">
+                        <i class="fa-solid fa-lock input-icon"></i>
+                        <input type="password" id="login-password" class="form-control" placeholder="••••••••••••" autocomplete="current-password" required>
+                        <button type="button" class="btn-toggle-password" id="btn-toggle-password" title="Show / Hide Password">
+                            <i class="fa-solid fa-eye" id="password-toggle-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block glow-button login-btn" id="btn-login-submit">
+                    <span class="btn-text"><i class="fa-solid fa-arrow-right-to-bracket"></i> Authenticate & Enter</span>
+                    <span class="btn-loader hidden" id="login-loader"><i class="fa-solid fa-spinner fa-spin"></i> Authenticating...</span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <span class="cloud-badge"><i class="fa-solid fa-cloud"></i> Vercel Serverless</span>
+                <span class="cloud-badge"><i class="fa-solid fa-database"></i> Cloud MySQL</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Controller Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = sessionStorage.getItem('apextask_token');
+            // If already logged in, verify token and redirect to /app
+            if (token) {
+                try {
+                    const res = await fetch('/api/auth/verify', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.valid) {
+                            window.location.href = '/app';
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    sessionStorage.removeItem('apextask_token');
+                }
+            }
+
+            // Password Show/Hide Toggle
+            const toggleBtn = document.getElementById('btn-toggle-password');
+            const passInput = document.getElementById('login-password');
+            const toggleIcon = document.getElementById('password-toggle-icon');
+
+            if (toggleBtn && passInput && toggleIcon) {
+                toggleBtn.addEventListener('click', () => {
+                    const isPass = passInput.type === 'password';
+                    passInput.type = isPass ? 'text' : 'password';
+                    toggleIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+                });
+            }
+
+            // Handle Login Form Submit
+            const form = document.getElementById('login-form');
+            const card = document.getElementById('login-card');
+            const errBanner = document.getElementById('login-error-banner');
+            const errText = document.getElementById('login-error-text');
+            const btnSubmit = document.getElementById('btn-login-submit');
+            const btnText = btnSubmit.querySelector('.btn-text');
+            const btnLoader = document.getElementById('login-loader');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                errBanner.classList.add('hidden');
+
+                const username = document.getElementById('login-username').value.trim();
+                const password = document.getElementById('login-password').value;
+
+                if (!username || !password) return;
+
+                // Show loading state
+                btnText.classList.add('hidden');
+                btnLoader.classList.remove('hidden');
+                btnSubmit.disabled = true;
+
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+
+                    const data = await res.json();
+
+                    if (res.ok && data.success && data.token) {
+                        // Store JWT in sessionStorage
+                        sessionStorage.setItem('apextask_token', data.token);
+                        sessionStorage.setItem('apextask_user', JSON.stringify(data.user));
+                        // Redirect to main app
+                        window.location.href = '/app';
+                    } else {
+                        throw new Error(data.error || 'Authentication failed. Please check credentials.');
+                    }
+                } catch (err) {
+                    // Shake animation on invalid credentials
+                    card.classList.remove('shake-card');
+                    void card.offsetWidth; // Trigger reflow
+                    card.classList.add('shake-card');
+
+                    errText.textContent = err.message;
+                    errBanner.classList.remove('hidden');
+                } finally {
+                    btnText.classList.remove('hidden');
+                    btnLoader.classList.add('hidden');
+                    btnSubmit.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
