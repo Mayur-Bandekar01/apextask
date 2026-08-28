@@ -19,6 +19,8 @@ try:
     from api.tasks import tasks_bp
     from api.records import records_bp
     from api.gamification import gamification_bp
+    from api.challenges import challenges_bp
+    from api.export_import import export_import_bp
 except ImportError:
     from config import Config
     from db import init_db, get_engine_name
@@ -26,6 +28,8 @@ except ImportError:
     from tasks import tasks_bp
     from records import records_bp
     from gamification import gamification_bp
+    from challenges import challenges_bp
+    from export_import import export_import_bp
 
 # Define frontend static directory
 frontend_dir = root_dir / 'frontend'
@@ -48,6 +52,8 @@ def create_app():
     app.register_blueprint(tasks_bp)
     app.register_blueprint(records_bp)
     app.register_blueprint(gamification_bp)
+    app.register_blueprint(challenges_bp, url_prefix='/api')
+    app.register_blueprint(export_import_bp, url_prefix='/api')
 
     @app.route('/')
     def index():

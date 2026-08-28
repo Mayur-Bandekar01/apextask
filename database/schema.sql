@@ -62,6 +62,24 @@ CREATE TABLE IF NOT EXISTS daily_records (
     INDEX idx_user_record_date (user_id, record_date)
 );
 
+CREATE TABLE IF NOT EXISTS challenges (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    challenge_type ENUM('daily', 'weekly') NOT NULL DEFAULT 'daily',
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    target_count INT NOT NULL DEFAULT 3,
+    current_count INT NOT NULL DEFAULT 0,
+    xp_reward INT NOT NULL DEFAULT 100,
+    is_completed TINYINT(1) DEFAULT 0,
+    is_claimed TINYINT(1) DEFAULT 0,
+    expires_at DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_challenge (user_id, challenge_type, expires_at)
+);
+
 -- Seed default user (Mayur)
 INSERT IGNORE INTO users (id, username, title, xp, level, streak, last_active)
 VALUES (1, 'mayur', 'Productivity Architect', 0, 1, 0, CURRENT_DATE);
+

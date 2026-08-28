@@ -42,6 +42,9 @@ def add_task():
     priority = data.get('priority', 'medium').lower()
     deadline = data.get('deadline')
     original_date = data.get('original_date')
+    tags = data.get('tags', '')
+    is_boss = bool(data.get('is_boss', False))
+    subtasks = data.get('subtasks')
 
     task = TaskModel.create_task(
         user_id=user_id,
@@ -49,7 +52,10 @@ def add_task():
         notes=notes,
         priority=priority,
         deadline=deadline,
-        original_date=original_date
+        original_date=original_date,
+        tags=tags,
+        is_boss=is_boss,
+        subtasks=subtasks
     )
     return jsonify({"success": True, "task": task, "message": "Task created successfully"}), 201
 
@@ -65,6 +71,7 @@ def edit_task(task_id):
     notes = data.get('notes', '')
     priority = data.get('priority', 'medium').lower()
     deadline = data.get('deadline')
+    tags = data.get('tags')
 
     task = TaskModel.update_task(
         task_id=task_id,
@@ -72,7 +79,8 @@ def edit_task(task_id):
         title=title,
         notes=notes,
         priority=priority,
-        deadline=deadline
+        deadline=deadline,
+        tags=tags
     )
     if not task:
         return jsonify({"success": False, "error": "Task not found"}), 404
@@ -101,6 +109,23 @@ def complete_task(task_id):
         "success": True,
         "result": result,
         "message": f"Task marked as {result['status']}"
+    })
+
+@tasks_bp.route('/<int:task_id>/boss/damage', methods=['POST'])
+@require_auth
+def damage_boss(task_id):
+    user_id = getattr(g, 'user_id', 1)
+    data = request.get_json(silent=True) or {}
+    subtask_index = int(data.get('subtask_index', 0))
+
+    result = TaskModel.damage_boss_subtask(task_id, subtask_index, user_id)
+    if not result:
+        return jsonify({"success": False, "error": "Boss task or subtask not found"}), 404
+
+    return jsonify({
+        "success": True,
+        "result": result,
+        "message": "⚔️ Direct Hit! Dealt damage to Boss!" if not result['is_defeated'] else "💥 BOSS DEFEATED! 3x XP multiplier claimed!"
     })
 
 @tasks_bp.route('/<int:task_id>/logs', methods=['GET'])

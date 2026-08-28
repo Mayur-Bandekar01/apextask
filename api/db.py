@@ -205,6 +205,39 @@ def init_db():
             );
         """)
 
+        # 6. Challenges table (Daily and Weekly Quest System)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS challenges (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT,
+                challenge_type VARCHAR(20) DEFAULT 'daily',
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                target_count INT DEFAULT 3,
+                current_count INT DEFAULT 0,
+                xp_reward INT DEFAULT 100,
+                is_completed INT DEFAULT 0,
+                is_claimed INT DEFAULT 0,
+                expires_at DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+        """)
+
+        # Schema Migrations (Safe column additions for tasks)
+        migration_columns = [
+            ("is_boss", "INT DEFAULT 0"),
+            ("boss_hp", "INT DEFAULT 0"),
+            ("boss_max_hp", "INT DEFAULT 0"),
+            ("tags", "VARCHAR(255) DEFAULT ''"),
+            ("subtasks", "TEXT")
+        ]
+        for col_name, col_type in migration_columns:
+            try:
+                cur.execute(f"ALTER TABLE tasks ADD COLUMN {col_name} {col_type};")
+            except Exception:
+                pass
+
         # Seed or sync the single default user (Mayur)
         cur.execute("SELECT id, username FROM users ORDER BY id ASC LIMIT 1;")
         row = cur.fetchone()

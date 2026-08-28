@@ -103,16 +103,34 @@
                 </div>
             </div>
 
-            <!-- Header Controls: Date & Theme & Sound & Add & Logout -->
+            <!-- Header Controls: Date & Theme & Custom Color & Shortcuts & Add & Logout -->
             <div class="header-right">
                 <div class="header-date-badge" id="nav-date-indicator" title="Current Date">
                     <i class="fa-regular fa-calendar-days"></i>
                     <span id="current-date-display">Today</span>
                 </div>
 
+                <!-- Custom Accent Color Picker -->
+                <div class="accent-picker-wrapper" title="Customize Accent Color">
+                    <label for="custom-accent-input" class="accent-color-label" id="accent-color-preview"></label>
+                    <input type="color" id="custom-accent-input" value="#8b5cf6" class="accent-color-input">
+                </div>
+
                 <div class="sound-toggle-btn" id="sound-toggle" title="Toggle Sound FX">
                     <i class="fa-solid fa-volume-high" id="sound-icon"></i>
                 </div>
+
+                <button class="header-action-btn" id="btn-toggle-focus" title="Distraction-Free Focus Mode (Press F)">
+                    <i class="fa-solid fa-crosshairs"></i>
+                </button>
+
+                <button class="header-action-btn" id="btn-open-import-export" title="Import / Export Missions">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                </button>
+
+                <button class="header-action-btn" id="btn-open-shortcuts" title="Keyboard Shortcuts (Press ?)">
+                    <i class="fa-solid fa-keyboard"></i>
+                </button>
 
                 <div class="theme-selector" id="theme-selector">
                     <button class="theme-pill active" data-theme-val="dark" title="Dark Obsidian Theme">
@@ -126,7 +144,7 @@
                     </button>
                 </div>
 
-                <button class="btn btn-primary glow-button" id="btn-open-add-task">
+                <button class="btn btn-primary glow-button" id="btn-open-add-task" title="Add New Mission (Press N)">
                     <i class="fa-solid fa-plus"></i>
                     <span>New Task</span>
                 </button>
@@ -151,6 +169,11 @@
                         <i class="fa-solid fa-list-check nav-tab-icon"></i>
                         <span class="nav-tab-label">Today's Focus</span>
                         <span class="tab-badge" id="badge-today-count">0</span>
+                    </button>
+                    <button class="nav-tab" data-tab="challenges">
+                        <i class="fa-solid fa-scroll nav-tab-icon"></i>
+                        <span class="nav-tab-label">Quests & Challenges</span>
+                        <span class="tab-badge badge-gold" id="badge-challenges-count">0</span>
                     </button>
                     <button class="nav-tab" data-tab="weekly">
                         <i class="fa-solid fa-chart-simple nav-tab-icon"></i>
@@ -192,19 +215,26 @@
             <!-- Main Content Workspace Area (Expands to fill remaining width) -->
             <main class="main-content-view" id="main-view-container">
 
+            <!-- Floating Focus Mode Exit Pill -->
+            <div class="focus-mode-exit-pill hidden" id="focus-mode-exit-pill" title="Exit Focus Mode (Esc or F)">
+                <i class="fa-solid fa-compress"></i> Exit Focus Mode <span class="kbd-hint">Esc / F</span>
+            </div>
+
             <!-- SECTION 1 & 2: TODAY'S FOCUS VIEW -->
             <section id="view-today" class="view-section active-view">
                 <!-- Action Controls Bar -->
                 <div class="section-toolbar glass-card">
-                    <div class="search-box-wrapper">
+                    <div class="search-box-wrapper" title="Press / to jump to search">
                         <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                        <input type="text" id="task-search-input" class="search-input" placeholder="Search missions, tags, notes...">
+                        <input type="text" id="task-search-input" class="search-input" placeholder="Fuzzy search missions, tags, notes... (Press /)">
+                        <span class="search-shortcut-badge">/</span>
                     </div>
 
                     <div class="filter-pills-group">
                         <button class="filter-pill active" data-filter="all">All</button>
                         <button class="filter-pill" data-filter="pending">Pending</button>
                         <button class="filter-pill" data-filter="complete">Completed</button>
+                        <button class="filter-pill" data-filter="boss">👑 Boss Battles</button>
                         <button class="filter-pill" data-filter="high">High Priority</button>
                         <button class="filter-pill" data-filter="rolled">Rolled Over</button>
                     </div>
@@ -230,6 +260,63 @@
                     <button class="btn btn-primary mt-3" id="btn-empty-add-task">
                         <i class="fa-solid fa-plus"></i> Create First Mission
                     </button>
+                </div>
+            </section>
+
+            <!-- SECTION: QUESTS & CHALLENGES VIEW -->
+            <section id="view-challenges" class="view-section hidden">
+                <div class="view-header">
+                    <div class="view-title-group">
+                        <h2><i class="fa-solid fa-scroll text-gold"></i> Quests & Milestone Challenges</h2>
+                        <p class="view-subtitle">Conquer daily objectives and weekly marathons to earn massive XP surges.</p>
+                    </div>
+                </div>
+
+                <!-- Daily Quests Grid -->
+                <div class="challenges-section-block">
+                    <h3 class="panel-subtitle"><i class="fa-solid fa-bolt text-amber"></i> Daily Sprint Objectives</h3>
+                    <div class="challenges-grid-container" id="daily-challenges-container">
+                        <!-- Dynamic Daily Quest Cards -->
+                    </div>
+                </div>
+
+                <!-- Weekly Quests Grid -->
+                <div class="challenges-section-block mt-4">
+                    <h3 class="panel-subtitle"><i class="fa-solid fa-trophy text-gold"></i> Weekly Grand Marathons</h3>
+                    <div class="challenges-grid-container" id="weekly-challenges-container">
+                        <!-- Dynamic Weekly Quest Cards -->
+                    </div>
+                </div>
+
+                <!-- XP Milestone Unlocks -->
+                <div class="challenges-section-block mt-4">
+                    <h3 class="panel-subtitle"><i class="fa-solid fa-medal text-purple"></i> XP Progression Milestones & Rewards</h3>
+                    <div class="milestones-track-container" id="milestones-track-container">
+                        <div class="milestone-card glass-card" id="milestone-500">
+                            <div class="milestone-badge-icon"><i class="fa-solid fa-palette"></i></div>
+                            <div class="milestone-details">
+                                <h4>500 XP — Neon Cyber Theme</h4>
+                                <p>Unlock the high-contrast hyper-glow theme preset</p>
+                                <span class="milestone-status" id="milestone-500-status">🔒 Locked</span>
+                            </div>
+                        </div>
+                        <div class="milestone-card glass-card" id="milestone-1000">
+                            <div class="milestone-badge-icon"><i class="fa-solid fa-crown"></i></div>
+                            <div class="milestone-details">
+                                <h4>1000 XP — Boss Battle Mode</h4>
+                                <p>Unlock Multi-Stage Boss encounters with 3x XP multiplier</p>
+                                <span class="milestone-status" id="milestone-1000-status">🔒 Locked</span>
+                            </div>
+                        </div>
+                        <div class="milestone-card glass-card" id="milestone-2500">
+                            <div class="milestone-badge-icon"><i class="fa-solid fa-dragon"></i></div>
+                            <div class="milestone-details">
+                                <h4>2500 XP — Apex Overlord Frame</h4>
+                                <p>Prestige golden avatar aura & Overlord champion title</p>
+                                <span class="milestone-status" id="milestone-2500-status">🔒 Locked</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -489,6 +576,18 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="task-form-tags">Categorization Tags</label>
+                    <input type="text" id="task-form-tags" class="form-control" placeholder="e.g., #engineering, #urgent, #deepwork">
+                </div>
+
+                <div class="form-group boss-toggle-group">
+                    <label class="boss-checkbox-label">
+                        <input type="checkbox" id="task-form-is-boss">
+                        <span class="boss-toggle-badge"><i class="fa-solid fa-crown text-gold"></i> Spawn as Multi-Stage Boss Battle (3x XP Bonus)</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
                     <label for="task-form-notes">Mission Notes & Sub-details</label>
                     <textarea id="task-form-notes" class="form-control" rows="3" placeholder="Context, checklists, or reference links..."></textarea>
                 </div>
@@ -514,6 +613,96 @@
             <div class="modal-body">
                 <div class="timeline-container" id="logs-timeline-list">
                     <!-- Dynamic timeline logs -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level Up Fanfare Celebration Modal -->
+    <div class="modal-backdrop hidden" id="levelup-modal-backdrop">
+        <div class="modal-card glass-card levelup-modal-card">
+            <div class="levelup-stage">
+                <div class="levelup-badge-halo" id="levelup-badge-halo">
+                    <span class="levelup-lvl-number" id="levelup-modal-level">2</span>
+                </div>
+                <h2 class="levelup-title">LEVEL UP!</h2>
+                <h4 class="levelup-subtitle" id="levelup-modal-title">Productivity Architect</h4>
+                <p class="levelup-desc">Your relentless discipline has forged you to a higher echelon. Your XP capacity expands!</p>
+                <button class="btn btn-primary glow-button mt-4" id="btn-close-levelup">
+                    <i class="fa-solid fa-fire"></i> Claim Prestige & Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Cheatsheet Modal -->
+    <div class="modal-backdrop hidden" id="shortcuts-modal-backdrop">
+        <div class="modal-card glass-card shortcuts-modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-keyboard"></i> Keyboard Shortcuts Cheatsheet</h3>
+                <button class="btn-close-modal" id="btn-close-shortcuts-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcuts-grid">
+                    <div class="shortcut-item">
+                        <span class="kbd-key">N</span>
+                        <span class="shortcut-desc">Open New Mission Drawer</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="kbd-key">D</span>
+                        <span class="shortcut-desc">Toggle Focused Task Complete</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="kbd-key">F</span>
+                        <span class="shortcut-desc">Toggle Distraction-Free Focus Mode</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="kbd-key">/</span>
+                        <span class="shortcut-desc">Jump to Global Fuzzy Search</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="kbd-key">?</span>
+                        <span class="shortcut-desc">Open Shortcuts Cheatsheet</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="kbd-key">Esc</span>
+                        <span class="shortcut-desc">Close Active Modal / Exit Focus</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import / Export Modal -->
+    <div class="modal-backdrop hidden" id="import-export-modal-backdrop">
+        <div class="modal-card glass-card" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-arrow-up"></i> Import & Export Missions</h3>
+                <button class="btn-close-modal" id="btn-close-import-export-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Export section -->
+                <div class="export-box glass-card p-3">
+                    <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;"><i class="fa-solid fa-cloud-arrow-down text-indigo"></i> Export Missions</h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Download all your tasks, tags, and status history as a portable file.</p>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-sm btn-glass" id="btn-export-json"><i class="fa-solid fa-code"></i> Export JSON</button>
+                        <button class="btn btn-sm btn-glass" id="btn-export-csv"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+                    </div>
+                </div>
+
+                <!-- Import section -->
+                <div class="import-box glass-card p-3">
+                    <h4 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;"><i class="fa-solid fa-cloud-arrow-up text-emerald"></i> Import Missions</h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">Upload a JSON or CSV file to immediately import tasks into your workspace.</p>
+                    <input type="file" id="import-file-input" accept=".json,.csv" style="display: none;">
+                    <div class="drop-zone" id="import-drop-zone">
+                        <i class="fa-solid fa-upload" style="font-size: 24px; color: var(--primary);"></i>
+                        <span id="import-file-name" style="font-size: 12.5px; font-weight: 600;">Choose or Drag JSON / CSV file here</span>
+                    </div>
+                    <button class="btn btn-primary glow-button mt-3 w-100" id="btn-submit-import" disabled>
+                        <i class="fa-solid fa-upload"></i> Process & Import Tasks
+                    </button>
                 </div>
             </div>
         </div>

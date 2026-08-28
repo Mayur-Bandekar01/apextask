@@ -1,13 +1,16 @@
 import datetime
+import json
 
 try:
     from api.db import get_db_connection
     from api.models.user import UserModel
     from api.models.badge import BadgeModel
+    from api.models.challenge import ChallengeModel
 except ImportError:
     from db import get_db_connection
     from models.user import UserModel
     from models.badge import BadgeModel
+    from models.challenge import ChallengeModel
 
 XP_MAP = {
     "low": 10,
@@ -45,6 +48,7 @@ class TaskModel:
                 FROM tasks t
                 WHERE t.user_id = %s AND t.original_date = %s
                 ORDER BY 
+                    t.is_boss DESC,
                     CASE t.priority 
                         WHEN 'high' THEN 1 
                         WHEN 'medium' THEN 2 
@@ -58,21 +62,38 @@ class TaskModel:
         return [TaskModel._format_task(t) for t in tasks]
 
     @staticmethod
-    def create_task(user_id, title, notes="", priority="medium", deadline=None, original_date=None):
+    def create_task(user_id, title, notes="", priority="medium", deadline=None, original_date=None, tags="", is_boss=False, subtasks=None):
         if not original_date:
             original_date = datetime.date.today().isoformat()
+
+        is_boss_int = 1 if is_boss else 0
+        boss_max_hp = 100 if is_boss else 0
+        boss_hp = 100 if is_boss else 0
+
+        # Subtasks default formatting
+        if subtasks and isinstance(subtasks, list):
+            subtasks_str = json.dumps(subtasks)
+        elif is_boss:
+            subtasks_str = json.dumps([
+                {"title": "Phase 1: Deep Research & Blueprint", "completed": False},
+                {"title": "Phase 2: Core Execution & Implementation", "completed": False},
+                {"title": "Phase 3: Final Polish & Strike", "completed": False}
+            ])
+        else:
+            subtasks_str = json.dumps([])
 
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO tasks (user_id, title, notes, priority, status, original_date, deadline, rollover_count)
-                VALUES (%s, %s, %s, %s, 'pending', %s, %s, 0);
-            """, (user_id, title, notes or '', priority.lower(), original_date, deadline or None))
+                INSERT INTO tasks (user_id, title, notes, priority, status, original_date, deadline, rollover_count, tags, is_boss, boss_hp, boss_max_hp, subtasks)
+                VALUES (%s, %s, %s, %s, 'pending', %s, %s, 0, %s, %s, %s, %s, %s);
+            """, (user_id, title, notes or '', priority.lower(), original_date, deadline or None, tags or '', is_boss_int, boss_hp, boss_max_hp, subtasks_str))
             
             task_id = cur.lastrowid
 
             # Create initial lifecycle log
-            log_msg = f"Created task with {priority.upper()} priority (Target: {original_date})"
+            boss_tag = " [BOSS BATTLE SPAWNED 👑]" if is_boss else ""
+            log_msg = f"Created task with {priority.upper()} priority{boss_tag} (Target: {original_date})"
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
                 VALUES (%s, %s);
@@ -85,7 +106,7 @@ class TaskModel:
         return TaskModel.get_task_by_id(task_id, user_id)
 
     @staticmethod
-    def update_task(task_id, user_id, title, notes="", priority="medium", deadline=None):
+    def update_task(task_id, user_id, title, notes="", priority="medium", deadline=None, tags=None):
         old_task = TaskModel.get_task_by_id(task_id, user_id)
         if not old_task:
             return None
@@ -99,6 +120,8 @@ class TaskModel:
             changes.append(f"Priority changed from {old_task.get('priority')} to {priority.lower()}")
         if old_task.get("deadline") != deadline:
             changes.append(f"Deadline updated to {deadline or 'None'}")
+        if tags is not None and old_task.get("tags") != tags:
+            changes.append(f"Tags updated to '{tags}'")
 
         if not changes:
             changes.append("Task details refreshed")
@@ -109,9 +132,9 @@ class TaskModel:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE tasks 
-                SET title = %s, notes = %s, priority = %s, deadline = %s
+                SET title = %s, notes = %s, priority = %s, deadline = %s, tags = COALESCE(%s, tags)
                 WHERE id = %s AND user_id = %s;
-            """, (title, notes or '', priority.lower(), deadline or None, task_id, user_id))
+            """, (title, notes or '', priority.lower(), deadline or None, tags, task_id, user_id))
 
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
@@ -150,18 +173,32 @@ class TaskModel:
         priority = (task.get("priority") or "medium").lower()
         base_xp = XP_MAP.get(priority, 25)
 
+        # 3x XP multiplier for Boss Battle Tasks!
+        is_boss = bool(task.get("is_boss"))
+        if is_boss:
+            base_xp = base_xp * 3
+
         xp_delta = base_xp if new_status == "complete" else -base_xp
         today = datetime.date.today().isoformat()
+
+        # Update subtasks to all completed if completing boss
+        subtasks = task.get("subtasks") or []
+        if is_boss and new_status == "complete":
+            for s in subtasks:
+                s["completed"] = True
+        subtasks_json = json.dumps(subtasks)
+        boss_hp = 0 if new_status == "complete" and is_boss else (100 if is_boss else 0)
 
         conn = get_db_connection()
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE tasks 
-                SET status = %s 
+                SET status = %s, subtasks = %s, boss_hp = %s
                 WHERE id = %s AND user_id = %s;
-            """, (new_status, task_id, user_id))
+            """, (new_status, subtasks_json, boss_hp, task_id, user_id))
 
-            log_msg = "Marked completed (+XP awarded)" if new_status == "complete" else "Reopened task (XP adjusted)"
+            boss_tag = " [👑 3X BOSS BOUNTY CLAIMED!]" if is_boss and new_status == "complete" else ""
+            log_msg = f"Marked completed (+XP awarded){boss_tag}" if new_status == "complete" else "Reopened task (XP adjusted)"
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
                 VALUES (%s, %s);
@@ -178,6 +215,7 @@ class TaskModel:
         streak_gained, streak_lost, current_streak = (False, False, 0)
         if new_status == "complete":
             streak_gained, streak_lost, current_streak = UserModel.check_and_update_streak(user_id)
+            ChallengeModel.increment_progress(user_id, priority, task.get("rollover_count", 0) > 0)
         else:
             user = UserModel.get_user(user_id)
             current_streak = user.get("streak", 0) if user else 0
@@ -202,6 +240,7 @@ class TaskModel:
         return {
             "task_id": task_id,
             "status": new_status,
+            "is_boss": is_boss,
             "xp_delta": xp_delta,
             "xp_result": xp_result,
             "streak_gained": streak_gained,
@@ -209,6 +248,71 @@ class TaskModel:
             "current_streak": current_streak,
             "new_badges": new_badges,
             "profile": updated_profile
+        }
+
+    @staticmethod
+    def damage_boss_subtask(task_id, subtask_index, user_id=1):
+        task = TaskModel.get_task_by_id(task_id, user_id)
+        if not task or not task.get('is_boss'):
+            return None
+
+        subtasks = task.get('subtasks') or []
+        if subtask_index < 0 or subtask_index >= len(subtasks):
+            return None
+
+        # Toggle subtask state
+        subtasks[subtask_index]['completed'] = not subtasks[subtask_index].get('completed', False)
+        
+        # Calculate damage & remaining HP
+        total_subtasks = max(1, len(subtasks))
+        completed_subtasks = sum(1 for s in subtasks if s.get('completed'))
+        damage_percent = int((completed_subtasks / total_subtasks) * 100)
+        new_hp = max(0, 100 - damage_percent)
+        
+        is_defeated = (new_hp <= 0 or completed_subtasks == total_subtasks)
+        new_status = "complete" if is_defeated else "pending"
+        
+        subtasks_json = json.dumps(subtasks)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE tasks 
+                SET subtasks = %s, boss_hp = %s, status = %s 
+                WHERE id = %s AND user_id = %s;
+            """, (subtasks_json, new_hp, new_status, task_id, user_id))
+            
+            action_desc = f"Struck Boss! Dealt damage to phase {subtask_index+1} (HP: {new_hp}/100)"
+            if is_defeated:
+                action_desc = "⚔️ BOSS DEFEATED! 3x XP multiplier unleashed & Mystery Chest ready!"
+            cur.execute("""
+                INSERT INTO task_logs (task_id, change_description)
+                VALUES (%s, %s);
+            """, (task_id, action_desc))
+            
+            if hasattr(conn, 'commit'):
+                conn.commit()
+        conn.close()
+        
+        # Award subtask strike XP (+25 XP per strike)
+        strike_xp = 25
+        if is_defeated:
+            # 3x XP boss bounty (+150 XP)
+            strike_xp += 150
+            
+        xp_result = UserModel.modify_xp(user_id, strike_xp, reason=f"Boss Strike on: {task.get('title')}")
+        if is_defeated:
+            ChallengeModel.increment_progress(user_id, "high", False)
+            
+        return {
+            "task_id": task_id,
+            "boss_hp": new_hp,
+            "is_defeated": is_defeated,
+            "subtasks": subtasks,
+            "status": new_status,
+            "xp_awarded": strike_xp,
+            "xp_result": xp_result,
+            "profile": UserModel.get_profile(user_id)
         }
 
     @staticmethod
@@ -366,6 +470,23 @@ class TaskModel:
             t["original_date"] = orig_date.strftime("%Y-%m-%d")
         else:
             t["original_date"] = str(orig_date) if orig_date else None
+
+        # Parse subtasks
+        subtasks_raw = t.get("subtasks")
+        if isinstance(subtasks_raw, str) and subtasks_raw.strip():
+            try:
+                t["subtasks"] = json.loads(subtasks_raw)
+            except Exception:
+                t["subtasks"] = []
+        elif isinstance(subtasks_raw, list):
+            t["subtasks"] = subtasks_raw
+        else:
+            t["subtasks"] = []
+
+        t["is_boss"] = bool(t.get("is_boss"))
+        t["boss_hp"] = t.get("boss_hp", 100) if t["is_boss"] else 0
+        t["boss_max_hp"] = t.get("boss_max_hp", 100) if t["is_boss"] else 0
+        t["tags"] = t.get("tags") or ""
 
         # Calculate days pending
         if t.get("status") == "pending" and t.get("original_date"):

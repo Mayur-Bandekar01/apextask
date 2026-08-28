@@ -404,6 +404,47 @@ function updateTabBadges() {
     }
 }
 
+// ==================== PURE VANILLA JS LEVENSHTEIN FUZZY SEARCH ====================
+function levenshteinDistance(s1, s2) {
+    if (!s1 || !s2) return (s1 || s2 || '').length;
+    s1 = s1.toLowerCase();
+    s2 = s2.toLowerCase();
+    const costs = [];
+    for (let i = 0; i <= s1.length; i++) {
+        let lastValue = i;
+        for (let j = 0; j <= s2.length; j++) {
+            if (i === 0) costs[j] = j;
+            else if (j > 0) {
+                let newValue = costs[j - 1];
+                if (s1.charAt(i - 1) !== s2.charAt(j - 1))
+                    newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                costs[j - 1] = lastValue;
+                lastValue = newValue;
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
+function fuzzyMatch(text, query) {
+    if (!query) return true;
+    if (!text) return false;
+    text = text.toLowerCase();
+    query = query.toLowerCase().trim();
+    if (text.includes(query)) return true;
+    
+    // Test fuzzy distance against split tokens
+    const words = text.split(/[\s,#_-]+/);
+    for (const w of words) {
+        if (!w) continue;
+        if (w.includes(query) || query.includes(w)) return true;
+        const maxDist = query.length <= 3 ? 1 : 2;
+        if (levenshteinDistance(w, query) <= maxDist) return true;
+    }
+    return false;
+}
+
 function renderTodayTasks() {
     const listContainer = document.getElementById('today-task-list');
     const emptyState = document.getElementById('today-empty-state');
@@ -414,15 +455,17 @@ function renderTodayTasks() {
         // Tab filter
         if (state.currentFilter === 'pending' && t.status !== 'pending') return false;
         if (state.currentFilter === 'complete' && t.status !== 'complete') return false;
+        if (state.currentFilter === 'boss' && !t.is_boss) return false;
         if (state.currentFilter === 'high' && (t.priority || '').toLowerCase() !== 'high') return false;
         if (state.currentFilter === 'rolled' && (t.rollover_count || 0) === 0) return false;
 
-        // Search query
+        // Levenshtein Real-Time Fuzzy Search across title, notes, and tags
         if (state.searchQuery.trim()) {
-            const q = state.searchQuery.toLowerCase();
-            const titleMatch = (t.title || '').toLowerCase().includes(q);
-            const notesMatch = (t.notes || '').toLowerCase().includes(q);
-            if (!titleMatch && !notesMatch) return false;
+            const q = state.searchQuery.trim();
+            const titleMatch = fuzzyMatch(t.title, q);
+            const notesMatch = fuzzyMatch(t.notes, q);
+            const tagsMatch = fuzzyMatch(t.tags, q);
+            if (!titleMatch && !notesMatch && !tagsMatch) return false;
         }
 
         return true;
@@ -443,6 +486,7 @@ function createTaskCardHTML(t) {
     const isComplete = t.status === 'complete';
     const isRolled = (t.rollover_count || 0) > 0;
     const daysPending = t.days_pending || 0;
+    const isBoss = Boolean(t.is_boss);
 
     // Determine pending glow level
     let glowClass = '';
@@ -468,10 +512,49 @@ function createTaskCardHTML(t) {
         `;
     }
 
+    // Boss Battle HP Bar & Subtasks
+    let bossHTML = '';
+    if (isBoss) {
+        const hp = t.boss_hp !== undefined ? t.boss_hp : 100;
+        const subtasks = Array.isArray(t.subtasks) ? t.subtasks : [];
+
+        bossHTML = `
+            <div class="boss-hp-container">
+                <div class="boss-hp-header">
+                    <span class="boss-hp-title"><i class="fa-solid fa-crown text-gold"></i> BOSS HP</span>
+                    <span class="boss-hp-val">${hp}/100 HP</span>
+                </div>
+                <div class="boss-hp-bar-track">
+                    <div class="boss-hp-bar-fill" style="width: ${hp}%;"></div>
+                </div>
+
+                ${subtasks.length > 0 ? `
+                    <div class="boss-subtasks-list">
+                        ${subtasks.map((st, idx) => `
+                            <div class="boss-subtask-item ${st.completed ? 'is-done' : ''}" onclick="handleBossDamage(${t.id}, ${idx})" title="Strike Boss Phase">
+                                <i class="fa-solid ${st.completed ? 'fa-square-check text-emerald' : 'fa-square'}"></i>
+                                <span>${escapeHTML(st.title || `Phase ${idx+1}`)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // Tags
+    let tagsHTML = '';
+    if (t.tags) {
+        const tagList = t.tags.split(/[\s,]+/).filter(Boolean);
+        if (tagList.length > 0) {
+            tagsHTML = tagList.map(tag => `<span class="tag-pill">${escapeHTML(tag.startsWith('#') ? tag : '#' + tag)}</span>`).join('');
+        }
+    }
+
     return `
-        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${glowClass}" data-task-id="${t.id}">
+        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${isBoss ? 'is-boss' : ''} ${glowClass}" data-task-id="${t.id}">
             <div class="task-card-header">
-                <button class="task-check-btn" title="${isComplete ? 'Mark Incomplete' : 'Mark Complete'}" data-action="toggle-complete">
+                <button class="task-check-btn" title="${isComplete ? 'Mark Incomplete' : (isBoss ? 'Defeat Boss (+3x XP)' : 'Mark Complete')}" data-action="toggle-complete">
                     <i class="fa-solid fa-check"></i>
                 </button>
 
@@ -479,8 +562,12 @@ function createTaskCardHTML(t) {
                     <div class="task-title">${escapeHTML(t.title)}</div>
                     ${t.notes ? `<div class="task-notes">${escapeHTML(t.notes)}</div>` : ''}
 
+                    ${bossHTML}
+
                     <div class="task-tags-row">
+                        ${isBoss ? `<span class="boss-badge-tag"><i class="fa-solid fa-crown"></i> Boss Battle (3x XP)</span>` : ''}
                         <span class="priority-tag priority-${t.priority || 'medium'}">${t.priority || 'medium'}</span>
+                        ${tagsHTML}
                         
                         ${isRolled ? `
                             <span class="rollover-tag" title="Auto-rolled over from previous day">
@@ -525,14 +612,14 @@ async function handleToggleComplete(taskId) {
 
             if (r.status === 'complete') {
                 audio.play('complete');
-                launchConfetti(r.xp_result && r.xp_result.leveled_up ? 'levelup' : 'default');
-                showToast(`Task completed! +${r.xp_delta} XP earned 🔥`, 'success');
+                const isLevelUp = r.xp_result && r.xp_result.leveled_up;
+                launchConfetti(isLevelUp ? 'levelup' : 'default');
 
-                if (r.xp_result && r.xp_result.leveled_up) {
-                    setTimeout(() => {
-                        audio.play('levelup');
-                        showToast(`⭐ LEVEL UP! You reached Level ${r.xp_result.level}!`, 'success', 'fa-crown');
-                    }, 400);
+                const bossMsg = r.is_boss ? ' 👑 3X BOSS BOUNTY CLAIMED!' : '';
+                showToast(`Task completed! +${r.xp_delta} XP earned 🔥${bossMsg}`, 'success');
+
+                if (isLevelUp) {
+                    triggerLevelUp(r.xp_result.level, r.profile ? r.profile.title : null);
                 }
 
                 if (r.new_badges && r.new_badges.length > 0) {
@@ -559,6 +646,7 @@ async function handleToggleComplete(taskId) {
             }
 
             await loadTodayTasks();
+            if (state.currentTab === 'challenges') loadChallenges();
             if (state.currentTab === 'weekly') loadWeeklyDashboard();
             if (state.currentTab === 'monthly') loadMonthlyDashboard();
             if (state.currentTab === 'yearly') loadYearlyDashboard();
@@ -566,6 +654,70 @@ async function handleToggleComplete(taskId) {
         }
     } catch (e) {
         showToast(e.message, 'danger');
+    }
+}
+
+// Boss Battle Strike Handler
+async function handleBossDamage(taskId, subtaskIndex) {
+    try {
+        const res = await api(`/tasks/${taskId}/boss/damage`, {
+            method: 'POST',
+            body: JSON.stringify({ subtask_index: subtaskIndex })
+        });
+
+        if (res.success && res.result) {
+            const r = res.result;
+            audio.play('complete');
+
+            if (r.is_defeated) {
+                audio.play('levelup');
+                launchConfetti('golden');
+                showToast('💥 BOSS DEFEATED! 3x XP multiplier claimed & Mystery Chest ready!', 'success', 'fa-crown');
+                setTimeout(() => openRewardChestModal(), 1200);
+            } else {
+                showToast(`⚔️ Direct Strike! Boss HP: ${r.boss_hp}/100 (+${r.xp_awarded} XP)`, 'warning');
+            }
+
+            if (r.xp_result && r.xp_result.leveled_up) {
+                triggerLevelUp(r.xp_result.level, r.profile ? r.profile.title : null);
+            }
+
+            if (r.profile) {
+                state.user = r.profile;
+                renderGamificationHeader();
+            }
+
+            await loadTodayTasks();
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+// Level Up Celebration Modal
+function triggerLevelUp(level, title) {
+    const modal = document.getElementById('levelup-modal-backdrop');
+    if (!modal) return;
+
+    const levelEl = document.getElementById('levelup-modal-level');
+    const titleEl = document.getElementById('levelup-modal-title');
+    if (levelEl) levelEl.textContent = level;
+    if (titleEl && title) titleEl.textContent = title;
+
+    modal.classList.remove('hidden');
+    audio.play('levelup');
+    launchConfetti('levelup');
+
+    const halo = document.getElementById('levelup-badge-halo');
+    if (halo && halo.animate) {
+        halo.animate([
+            { transform: 'scale(0.5) rotate(-20deg)', opacity: 0 },
+            { transform: 'scale(1.2) rotate(10deg)', opacity: 1 },
+            { transform: 'scale(1.0) rotate(0deg)', opacity: 1 }
+        ], {
+            duration: 700,
+            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+        });
     }
 }
 
@@ -645,6 +797,12 @@ function openAddTaskModal() {
     titleEl.innerHTML = '<i class="fa-solid fa-plus"></i> Create New Mission';
     submitText.textContent = 'Save Task';
 
+    const tagsInput = document.getElementById('task-form-tags');
+    if (tagsInput) tagsInput.value = '';
+
+    const bossCheck = document.getElementById('task-form-is-boss');
+    if (bossCheck) bossCheck.checked = false;
+
     const dateInput = document.getElementById('task-form-date');
     if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
 
@@ -663,6 +821,12 @@ function openEditTaskModal(taskId) {
     document.getElementById('task-form-id').value = task.id;
     document.getElementById('task-form-title').value = task.title;
     document.getElementById('task-form-notes').value = task.notes || '';
+
+    const tagsInput = document.getElementById('task-form-tags');
+    if (tagsInput) tagsInput.value = task.tags || '';
+
+    const bossCheck = document.getElementById('task-form-is-boss');
+    if (bossCheck) bossCheck.checked = Boolean(task.is_boss);
     
     const priority = task.priority || 'medium';
     const radio = document.querySelector(`input[name="task_priority"][value="${priority}"]`);
@@ -707,13 +871,17 @@ async function handleTaskFormSubmit(e) {
     const originalDate = document.getElementById('task-form-date').value;
     const deadlineVal = document.getElementById('task-form-deadline').value;
     const deadline = deadlineVal ? deadlineVal.replace('T', ' ') + ':00' : null;
+    const tags = document.getElementById('task-form-tags') ? document.getElementById('task-form-tags').value.trim() : '';
+    const isBoss = document.getElementById('task-form-is-boss') ? document.getElementById('task-form-is-boss').checked : false;
 
     const payload = {
         title,
         notes,
         priority,
         original_date: originalDate,
-        deadline
+        deadline,
+        tags,
+        is_boss: isBoss
     };
 
     try {
@@ -733,7 +901,7 @@ async function handleTaskFormSubmit(e) {
             });
             if (res.success) {
                 audio.play('click');
-                showToast('Task created and logged!', 'success');
+                showToast(isBoss ? '👑 Boss Battle spawned!' : 'Task created and logged!', 'success');
             }
         }
 
@@ -1233,6 +1401,265 @@ function updateLiveDateDisplay() {
     }
 }
 
+// ==================== SECTION 5: DAILY & WEEKLY CHALLENGES ====================
+async function loadChallenges() {
+    try {
+        const res = await api('/challenges');
+        if (res.success && res.challenges) {
+            state.challenges = res.challenges;
+            renderChallenges();
+        }
+    } catch (e) {
+        console.error('Failed to load challenges:', e);
+    }
+}
+
+function renderChallenges() {
+    const dailyContainer = document.getElementById('daily-challenges-container');
+    const weeklyContainer = document.getElementById('weekly-challenges-container');
+    const badgeCount = document.getElementById('badge-challenges-count');
+
+    const challenges = state.challenges || [];
+    const daily = challenges.filter(c => c.challenge_type === 'daily');
+    const weekly = challenges.filter(c => c.challenge_type === 'weekly');
+
+    const pendingClaims = challenges.filter(c => c.is_completed && !c.is_claimed).length;
+    if (badgeCount) {
+        badgeCount.textContent = pendingClaims > 0 ? pendingClaims : challenges.filter(c => !c.is_claimed).length;
+    }
+
+    const renderCard = (c) => `
+        <div class="challenge-card glass-card">
+            <div class="challenge-header">
+                <div class="challenge-title-group">
+                    <h4>${escapeHTML(c.title)}</h4>
+                    <p>${escapeHTML(c.description)}</p>
+                </div>
+                <div class="challenge-reward-badge">+${c.xp_reward} XP</div>
+            </div>
+            <div class="challenge-progress-bar">
+                <div class="challenge-progress-fill" style="width: ${c.progress_percent || 0}%;"></div>
+            </div>
+            <div class="challenge-footer">
+                <span class="challenge-stat-text">${c.current_count} / ${c.target_count} Completed</span>
+                ${c.is_claimed ? `
+                    <span class="badge-status-tag">✓ Claimed</span>
+                ` : c.is_completed ? `
+                    <button class="btn btn-sm btn-primary glow-button" onclick="claimChallenge(${c.id})">
+                        <i class="fa-solid fa-gift"></i> Claim Reward
+                    </button>
+                ` : `
+                    <span class="text-muted" style="font-size: 11.5px;"><i class="fa-solid fa-spinner fa-spin"></i> In Progress</span>
+                `}
+            </div>
+        </div>
+    `;
+
+    if (dailyContainer) dailyContainer.innerHTML = daily.map(renderCard).join('') || '<div class="text-muted">No active daily quests.</div>';
+    if (weeklyContainer) weeklyContainer.innerHTML = weekly.map(renderCard).join('') || '<div class="text-muted">No active weekly quests.</div>';
+
+    // Milestone Rewards Unlocks Track
+    const userXp = (state.user && state.user.xp) || 0;
+    const m500 = document.getElementById('milestone-500-status');
+    const m1000 = document.getElementById('milestone-1000-status');
+    const m2500 = document.getElementById('milestone-2500-status');
+    if (m500) m500.innerHTML = userXp >= 500 ? '<span class="text-emerald font-bold">✓ Unlocked (Neon Cyber)</span>' : '🔒 Requires 500 XP';
+    if (m1000) m1000.innerHTML = userXp >= 1000 ? '<span class="text-emerald font-bold">✓ Unlocked (Boss Mode)</span>' : '🔒 Requires 1,000 XP';
+    if (m2500) m2500.innerHTML = userXp >= 2500 ? '<span class="text-emerald font-bold">✓ Unlocked (Apex Overlord)</span>' : '🔒 Requires 2,500 XP';
+}
+
+async function claimChallenge(challengeId) {
+    try {
+        const res = await api(`/challenges/${challengeId}/claim`, { method: 'POST' });
+        if (res.success) {
+            audio.play('chest');
+            launchConfetti('default');
+            showToast(`🎉 Quest Claimed! +${res.xp_reward} XP added!`, 'success');
+            if (res.profile) {
+                state.user = res.profile;
+                renderGamificationHeader();
+            }
+            await loadChallenges();
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+// ==================== SECTION 6: FOCUS MODE ====================
+function toggleFocusMode(forceState = null) {
+    const isActive = forceState !== null ? forceState : !document.body.classList.contains('focus-mode-active');
+    const exitPill = document.getElementById('focus-mode-exit-pill');
+
+    if (isActive) {
+        document.body.classList.add('focus-mode-active');
+        if (exitPill) exitPill.classList.remove('hidden');
+        showToast('🎯 Focus Mode: Distractions silenced (Press Esc or F to exit)', 'info', 'fa-crosshairs');
+    } else {
+        document.body.classList.remove('focus-mode-active');
+        if (exitPill) exitPill.classList.add('hidden');
+        showToast('Focus Mode exited', 'info');
+    }
+}
+
+// ==================== SECTION 7: CUSTOM ACCENT COLOR PICKER ====================
+function hexToRgba(hex, alpha = 1) {
+    hex = hex.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function applyAccentColor(color) {
+    if (!color) return;
+    document.documentElement.style.setProperty('--primary', color);
+    document.documentElement.style.setProperty('--primary-glow', hexToRgba(color, 0.45));
+    document.documentElement.style.setProperty('--accent', color);
+
+    const preview = document.getElementById('accent-color-preview');
+    if (preview) preview.style.background = color;
+    const input = document.getElementById('custom-accent-input');
+    if (input) input.value = color;
+
+    localStorage.setItem('apextask_custom_accent', color);
+}
+
+function initAccentColor() {
+    const saved = localStorage.getItem('apextask_custom_accent') || '#8b5cf6';
+    applyAccentColor(saved);
+
+    const input = document.getElementById('custom-accent-input');
+    if (input) {
+        input.addEventListener('input', (e) => applyAccentColor(e.target.value));
+        input.addEventListener('change', (e) => applyAccentColor(e.target.value));
+    }
+}
+
+// ==================== SECTION 8: KEYBOARD CONTROLLER ====================
+const keyboardController = {
+    init() {
+        document.addEventListener('keydown', (e) => {
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+
+            // Esc closes modals and exits Focus Mode
+            if (e.key === 'Escape') {
+                const openModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+                if (openModals.length > 0) {
+                    openModals.forEach(m => m.classList.add('hidden'));
+                    return;
+                }
+                if (document.body.classList.contains('focus-mode-active')) {
+                    toggleFocusMode(false);
+                    return;
+                }
+            }
+
+            // If typing in input, don't trigger single-letter hotkeys
+            if (isTyping) return;
+
+            if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                openAddTaskModal();
+            } else if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                const firstPending = state.tasks.find(t => t.status === 'pending');
+                if (firstPending) {
+                    handleToggleComplete(firstPending.id);
+                } else {
+                    showToast('No pending tasks to mark complete!', 'info');
+                }
+            } else if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleFocusMode();
+            } else if (e.key === '/') {
+                e.preventDefault();
+                const searchInput = document.getElementById('task-search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+                e.preventDefault();
+                openShortcutsModal();
+            }
+        });
+    }
+};
+
+function openShortcutsModal() {
+    const modal = document.getElementById('shortcuts-modal-backdrop');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeShortcutsModal() {
+    const modal = document.getElementById('shortcuts-modal-backdrop');
+    if (modal) modal.classList.add('hidden');
+}
+
+function openImportExportModal() {
+    const modal = document.getElementById('import-export-modal-backdrop');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeImportExportModal() {
+    const modal = document.getElementById('import-export-modal-backdrop');
+    if (modal) modal.classList.add('hidden');
+}
+
+// ==================== SECTION 9: TASK IMPORT & EXPORT ====================
+async function handleExportTasks(format = 'json') {
+    const token = getAuthToken();
+    try {
+        const res = await fetch(`${API_BASE}/tasks/export?format=${format}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Export failed');
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `apextask_export_${new Date().toISOString().slice(0, 10)}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showToast(`Missions exported successfully as ${format.toUpperCase()}!`, 'success');
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
+async function handleImportTasks(file) {
+    if (!file) return;
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        showToast('Importing tasks...', 'info');
+        const res = await fetch(`${API_BASE}/tasks/import`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+            audio.play('complete');
+            showToast(data.message || `Imported ${data.imported_count} tasks!`, 'success');
+            closeImportExportModal();
+            await loadTodayTasks();
+        } else {
+            showToast(data.error || 'Failed to import tasks', 'danger');
+        }
+    } catch (e) {
+        showToast(e.message, 'danger');
+    }
+}
+
 // ==================== INITIALIZATION & EVENT LISTENERS ====================
 document.addEventListener('DOMContentLoaded', async () => {
     // 0. Enforce Authentication Guard on app.html
@@ -1300,6 +1727,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (targetSection) targetSection.classList.remove('hidden');
 
             if (tabId === 'today') loadTodayTasks();
+            else if (tabId === 'challenges') loadChallenges();
             else if (tabId === 'weekly') loadWeeklyDashboard();
             else if (tabId === 'monthly') loadMonthlyDashboard();
             else if (tabId === 'yearly') loadYearlyDashboard();
@@ -1319,7 +1747,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // 5. Search Bar in Today's View
+    // 5. Search Bar in Today's View (Fuzzy Levenshtein Real-time)
     const searchInput = document.getElementById('task-search-input');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
@@ -1350,6 +1778,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnClaimReward = document.getElementById('btn-claim-reward');
     if (btnCloseChestModal) btnCloseChestModal.addEventListener('click', closeRewardChestModal);
     if (btnClaimReward) btnClaimReward.addEventListener('click', closeRewardChestModal);
+
+    // Shortcuts modal
+    const btnOpenShortcuts = document.getElementById('btn-open-shortcuts');
+    const btnCloseShortcuts = document.getElementById('btn-close-shortcuts-modal');
+    if (btnOpenShortcuts) btnOpenShortcuts.addEventListener('click', openShortcutsModal);
+    if (btnCloseShortcuts) btnCloseShortcuts.addEventListener('click', closeShortcutsModal);
+
+    // Import / Export modal
+    const btnOpenImportExport = document.getElementById('btn-open-import-export');
+    const btnCloseImportExport = document.getElementById('btn-close-import-export-modal');
+    if (btnOpenImportExport) btnOpenImportExport.addEventListener('click', openImportExportModal);
+    if (btnCloseImportExport) btnCloseImportExport.addEventListener('click', closeImportExportModal);
+
+    // Level up modal close
+    const btnCloseLevelup = document.getElementById('btn-close-levelup-modal');
+    const btnClaimLevelup = document.getElementById('btn-claim-levelup');
+    if (btnCloseLevelup) btnCloseLevelup.addEventListener('click', () => document.getElementById('levelup-modal-backdrop').classList.add('hidden'));
+    if (btnClaimLevelup) btnClaimLevelup.addEventListener('click', () => document.getElementById('levelup-modal-backdrop').classList.add('hidden'));
+
+    // Focus mode button & exit pill
+    const btnFocusMode = document.getElementById('btn-focus-mode');
+    const exitFocusPill = document.getElementById('focus-mode-exit-pill');
+    if (btnFocusMode) btnFocusMode.addEventListener('click', () => toggleFocusMode());
+    if (exitFocusPill) exitFocusPill.addEventListener('click', () => toggleFocusMode(false));
+
+    // Export JSON & CSV buttons
+    const btnExportJson = document.getElementById('btn-export-json');
+    const btnExportCsv = document.getElementById('btn-export-csv');
+    if (btnExportJson) btnExportJson.addEventListener('click', () => handleExportTasks('json'));
+    if (btnExportCsv) btnExportCsv.addEventListener('click', () => handleExportTasks('csv'));
+
+    // Import file input & drag/drop
+    const fileInput = document.getElementById('tasks-file-input');
+    const dropZone = document.getElementById('import-drop-zone');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) handleImportTasks(e.target.files[0]);
+        });
+    }
+    if (dropZone) {
+        dropZone.addEventListener('click', () => fileInput && fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleImportTasks(e.dataTransfer.files[0]);
+            }
+        });
+    }
 
     // Delete confirmation modal buttons
     const btnCancelDelete = document.getElementById('btn-cancel-delete');
@@ -1437,13 +1916,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // Escape key to close modals
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-backdrop').forEach(b => b.classList.add('hidden'));
-        }
-    });
-
     // 8. Task Form Submit
     const taskForm = document.getElementById('task-form');
     if (taskForm) taskForm.addEventListener('submit', handleTaskFormSubmit);
@@ -1457,10 +1929,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.textContent = now.toLocaleDateString('en-US', options);
     }
 
-    // 9. Initial App Load & Auto Rollover
+    // 9. Initial App Load, Controllers & Auto Rollover
     updateLiveDateDisplay();
+    initAccentColor();
+    keyboardController.init();
     renderGamificationHeader();
     await triggerAutoRollover(false);
     await loadTodayTasks();
+    await loadChallenges();
     await loadShameBoard();
 });
