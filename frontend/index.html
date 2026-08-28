@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — APEXTASK Ultimate To-Do Suite</title>
-    <meta name="description" content="Secure Single-User Login to APEXTASK Gamified Productivity Suite">
+    <title>Log in — APEXTASK</title>
+    <meta name="description" content="Secure Single-User Login to APEXTASK Productivity Suite">
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -18,57 +18,96 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="login-body">
-    <!-- Ambient Background Lighting -->
-    <div class="ambient-glow glow-1"></div>
-    <div class="ambient-glow glow-2"></div>
+    <!-- Subtle Ambient Lighting Effect -->
+    <div class="ambient-glow glow-subtle-1"></div>
+    <div class="ambient-glow glow-subtle-2"></div>
 
     <div class="login-wrapper">
-        <div class="login-card glass-card" id="login-card">
+        <div class="login-card" id="login-card">
             <!-- Brand Header -->
             <div class="login-header">
                 <div class="login-brand-icon">
                     <i class="fa-solid fa-bolt-lightning"></i>
                 </div>
-                <h1 class="login-title">APEX<span>TASK</span></h1>
-                <p class="login-subtitle">Cloud Sync & Gamified Execution Suite</p>
+                <h1 class="login-title">Sign in to APEX<span>TASK</span></h1>
+                <p class="login-subtitle">Enter your credentials to access your productivity suite</p>
             </div>
 
             <!-- Error Banner -->
             <div class="login-error-banner hidden" id="login-error-banner">
-                <i class="fa-solid fa-triangle-exclamation"></i>
+                <i class="fa-solid fa-circle-exclamation"></i>
                 <span id="login-error-text">Invalid username or password</span>
+            </div>
+
+            <!-- Notice / Info Toast for SSO & Forgot Password -->
+            <div class="login-info-banner hidden" id="login-info-banner">
+                <i class="fa-solid fa-circle-info"></i>
+                <span id="login-info-text">Single-operator mode active. Authenticate with your primary operator credentials.</span>
             </div>
 
             <!-- Login Form -->
             <form id="login-form" class="login-form">
                 <div class="form-group">
-                    <label for="login-username">Operator Username</label>
+                    <label for="login-username" class="form-label">Username</label>
                     <div class="input-with-icon">
-                        <i class="fa-solid fa-user input-icon"></i>
-                        <input type="text" id="login-username" class="form-control" placeholder="Enter username (e.g. mayur)" autocomplete="username" required autofocus>
+                        <i class="fa-regular fa-user input-icon"></i>
+                        <input type="text" id="login-username" class="form-control" placeholder="e.g. mayur" autocomplete="username" required autofocus>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="login-password">Access Key / Password</label>
+                    <div class="form-label-row">
+                        <label for="login-password" class="form-label">Password</label>
+                        <a href="#" class="forgot-pass-link" id="forgot-password-link">Forgot password?</a>
+                    </div>
                     <div class="input-with-icon password-input-wrapper">
-                        <i class="fa-solid fa-lock input-icon"></i>
+                        <i class="fa-regular fa-lock input-icon"></i>
                         <input type="password" id="login-password" class="form-control" placeholder="••••••••••••" autocomplete="current-password" required>
-                        <button type="button" class="btn-toggle-password" id="btn-toggle-password" title="Show / Hide Password">
-                            <i class="fa-solid fa-eye" id="password-toggle-icon"></i>
+                        <button type="button" class="btn-toggle-password" id="btn-toggle-password" title="Show / Hide Password" aria-label="Toggle password visibility">
+                            <i class="fa-regular fa-eye" id="password-toggle-icon"></i>
                         </button>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block glow-button login-btn" id="btn-login-submit">
-                    <span class="btn-text"><i class="fa-solid fa-arrow-right-to-bracket"></i> Authenticate & Enter</span>
+                <button type="submit" class="btn btn-primary btn-block login-btn" id="btn-login-submit">
+                    <span class="btn-text">Sign In</span>
                     <span class="btn-loader hidden" id="login-loader"><i class="fa-solid fa-spinner fa-spin"></i> Authenticating...</span>
                 </button>
             </form>
 
+            <!-- SSO Divider -->
+            <div class="auth-divider">
+                <span>Or continue with</span>
+            </div>
+
+            <!-- Single Sign-On (SSO) Options -->
+            <div class="sso-buttons-row">
+                <button type="button" class="btn-sso" data-provider="Google" title="Sign in with Google">
+                    <svg class="sso-icon" width="16" height="16" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"/>
+                        <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"/>
+                        <path fill="#FBBC05" d="M5.6 14.8c-.3-.8-.4-1.8-.4-2.8s.2-1.9.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z"/>
+                        <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/>
+                    </svg>
+                    <span>Google</span>
+                </button>
+
+                <button type="button" class="btn-sso" data-provider="GitHub" title="Sign in with GitHub">
+                    <i class="fa-brands fa-github sso-icon"></i>
+                    <span>GitHub</span>
+                </button>
+
+                <button type="button" class="btn-sso" data-provider="SAML SSO" title="Sign in with Enterprise SSO">
+                    <i class="fa-solid fa-key sso-icon"></i>
+                    <span>SSO</span>
+                </button>
+            </div>
+
+            <!-- Footer Security Details -->
             <div class="login-footer">
-                <span class="cloud-badge"><i class="fa-solid fa-cloud"></i> Vercel Serverless</span>
-                <span class="cloud-badge"><i class="fa-solid fa-database"></i> Cloud MySQL</span>
+                <span class="security-tag"><i class="fa-solid fa-shield-halved"></i> 256-Bit SSL</span>
+                <span class="security-tag"><i class="fa-solid fa-database"></i> TiDB Cloud</span>
+                <span class="security-tag"><i class="fa-solid fa-server"></i> Vercel Edge</span>
             </div>
         </div>
     </div>
@@ -104,9 +143,38 @@
                 toggleBtn.addEventListener('click', () => {
                     const isPass = passInput.type === 'password';
                     passInput.type = isPass ? 'text' : 'password';
-                    toggleIcon.className = isPass ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+                    toggleIcon.className = isPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
                 });
             }
+
+            // Info banner helper
+            const infoBanner = document.getElementById('login-info-banner');
+            const infoText = document.getElementById('login-info-text');
+
+            function showInfo(message) {
+                infoText.textContent = message;
+                infoBanner.classList.remove('hidden');
+                setTimeout(() => {
+                    infoBanner.classList.add('hidden');
+                }, 5000);
+            }
+
+            // Forgot Password Click
+            const forgotLink = document.getElementById('forgot-password-link');
+            if (forgotLink) {
+                forgotLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showInfo('Password reset: Update APP_PASSWORD in your Vercel Environment Variables.');
+                });
+            }
+
+            // SSO Buttons Click
+            document.querySelectorAll('.btn-sso').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const provider = btn.dataset.provider || 'SSO';
+                    showInfo(`${provider} SSO: Single-operator mode enabled. Please sign in with your username & password above.`);
+                });
+            });
 
             // Handle Login Form Submit
             const form = document.getElementById('login-form');
@@ -120,6 +188,7 @@
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 errBanner.classList.add('hidden');
+                infoBanner.classList.add('hidden');
 
                 const username = document.getElementById('login-username').value.trim();
                 const password = document.getElementById('login-password').value;
@@ -147,7 +216,7 @@
                         // Redirect to main app
                         window.location.href = '/app';
                     } else {
-                        throw new Error(data.error || 'Authentication failed. Please check credentials.');
+                        throw new Error(data.error || 'Invalid credentials. Please verify your username and password.');
                     }
                 } catch (err) {
                     // Shake animation on invalid credentials
