@@ -21,6 +21,8 @@ const state = {
     yearlyChart: null,
     dateTasksModalData: null,
     taskToDeleteId: null
+};
+
 // ==================== API QUEUE & LOADING / ANIMATION HELPERS ====================
 class APIQueue {
     constructor() {
