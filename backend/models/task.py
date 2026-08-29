@@ -17,6 +17,21 @@ PENALTY_MAP = {
 
 class TaskModel:
     @staticmethod
+    def _get_subtasks(cur, task_id):
+        cur.execute("SELECT id, task_id, title, is_done, order_index FROM subtasks WHERE task_id = %s ORDER BY order_index ASC, id ASC;", (task_id,))
+        rows = cur.fetchall() or []
+        subtasks = []
+        for r in rows:
+            subtasks.append({
+                "id": r["id"],
+                "task_id": r["task_id"],
+                "title": r["title"],
+                "is_done": bool(r.get("is_done", 0)),
+                "order_index": r.get("order_index", 0)
+            })
+        return subtasks
+
+    @staticmethod
     def get_tasks_for_today(user_id=1):
         today = datetime.date.today().isoformat()
         conn = get_db_connection()
@@ -51,6 +66,7 @@ class TaskModel:
                 cur.execute("SELECT COUNT(*) as log_count FROM task_logs WHERE task_id = %s;", (t["id"],))
                 lc = cur.fetchone()
                 t["log_count"] = lc.get("log_count", 0) if lc else 0
+                t["subtasks"] = TaskModel._get_subtasks(cur, t["id"])
 
         conn.close()
         return tasks
@@ -89,12 +105,13 @@ class TaskModel:
                 cur.execute("SELECT COUNT(*) as log_count FROM task_logs WHERE task_id = %s;", (t["id"],))
                 lc = cur.fetchone()
                 t["log_count"] = lc.get("log_count", 0) if lc else 0
+                t["subtasks"] = TaskModel._get_subtasks(cur, t["id"])
 
         conn.close()
         return tasks
 
     @staticmethod
-    def create_task(user_id, title, notes="", priority="medium", deadline=None, original_date=None):
+    def create_task(user_id, title, notes="", priority="medium", deadline=None, original_date=None, subtasks=None):
         if not original_date:
             original_date = datetime.date.today().isoformat()
         if priority not in ['low', 'medium', 'high']:
@@ -107,6 +124,17 @@ class TaskModel:
                 VALUES (%s, %s, %s, %s, 'pending', %s, %s, 0);
             """, (user_id, title, notes, priority, original_date, deadline or None))
             task_id = cur.lastrowid
+
+            if subtasks and isinstance(subtasks, list):
+                for idx, st in enumerate(subtasks):
+                    st_title = (st.get('title') or '').strip() if isinstance(st, dict) else str(st).strip()
+                    if st_title:
+                        is_done = 1 if (isinstance(st, dict) and st.get('is_done')) else 0
+                        order_idx = st.get('order_index', idx) if isinstance(st, dict) else idx
+                        cur.execute("""
+                            INSERT INTO subtasks (task_id, title, is_done, order_index)
+                            VALUES (%s, %s, %s, %s);
+                        """, (task_id, st_title, is_done, order_idx))
 
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
@@ -125,13 +153,15 @@ class TaskModel:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM tasks WHERE id = %s AND user_id = %s;", (task_id, user_id))
             task = cur.fetchone()
-            if task and task.get("deadline"):
-                task["deadline_str"] = str(task["deadline"])
+            if task:
+                if task.get("deadline"):
+                    task["deadline_str"] = str(task["deadline"])
+                task["subtasks"] = TaskModel._get_subtasks(cur, task["id"])
         conn.close()
         return task
 
     @staticmethod
-    def update_task(task_id, user_id, title, notes, priority, deadline):
+    def update_task(task_id, user_id, title, notes, priority, deadline, subtasks=None):
         existing = TaskModel.get_task_by_id(task_id, user_id)
         if not existing:
             return None
@@ -159,6 +189,18 @@ class TaskModel:
                 WHERE id = %s AND user_id = %s;
             """, (title, notes, priority, deadline or None, task_id, user_id))
 
+            if subtasks is not None and isinstance(subtasks, list):
+                cur.execute("DELETE FROM subtasks WHERE task_id = %s;", (task_id,))
+                for idx, st in enumerate(subtasks):
+                    st_title = (st.get('title') or '').strip() if isinstance(st, dict) else str(st).strip()
+                    if st_title:
+                        is_done = 1 if (isinstance(st, dict) and st.get('is_done')) else 0
+                        order_idx = st.get('order_index', idx) if isinstance(st, dict) else idx
+                        cur.execute("""
+                            INSERT INTO subtasks (task_id, title, is_done, order_index)
+                            VALUES (%s, %s, %s, %s);
+                        """, (task_id, st_title, is_done, order_idx))
+
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
                 VALUES (%s, %s);
@@ -169,6 +211,32 @@ class TaskModel:
         conn.close()
 
         return TaskModel.get_task_by_id(task_id, user_id)
+
+    @staticmethod
+    def toggle_subtask(subtask_id, is_done=None):
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM subtasks WHERE id = %s;", (subtask_id,))
+            st = cur.fetchone()
+            if not st:
+                conn.close()
+                return None
+
+            if is_done is None:
+                new_done = 0 if st.get("is_done") else 1
+            else:
+                new_done = 1 if is_done else 0
+
+            cur.execute("UPDATE subtasks SET is_done = %s WHERE id = %s;", (new_done, subtask_id))
+            if hasattr(conn, 'commit'):
+                conn.commit()
+
+            cur.execute("SELECT id, task_id, title, is_done, order_index FROM subtasks WHERE id = %s;", (subtask_id,))
+            updated = cur.fetchone()
+            if updated:
+                updated["is_done"] = bool(updated.get("is_done"))
+        conn.close()
+        return updated
 
     @staticmethod
     def delete_task(task_id, user_id=1):

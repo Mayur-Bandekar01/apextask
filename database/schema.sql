@@ -40,6 +40,18 @@ CREATE TABLE IF NOT EXISTS task_logs (
     INDEX idx_task_log (task_id, changed_at)
 );
 
+CREATE TABLE IF NOT EXISTS subtasks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    task_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    is_done TINYINT(1) DEFAULT 0,
+    order_index INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    INDEX idx_subtasks_task (task_id, order_index)
+);
+
+
 CREATE TABLE IF NOT EXISTS badges (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,

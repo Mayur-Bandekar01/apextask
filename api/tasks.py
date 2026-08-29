@@ -128,6 +128,15 @@ def damage_boss(task_id):
         "message": "⚔️ Direct Hit! Dealt damage to Boss!" if not result['is_defeated'] else "💥 BOSS DEFEATED! 3x XP multiplier claimed!"
     })
 
+@tasks_bp.route('/<int:task_id>/subtasks/<int:subtask_idx>/toggle', methods=['POST'])
+@require_auth
+def toggle_subtask(task_id, subtask_idx):
+    user_id = getattr(g, 'user_id', 1)
+    result = TaskModel.toggle_normal_subtask(task_id, subtask_idx, user_id)
+    if not result:
+        return jsonify({"success": False, "error": "Subtask not found"}), 404
+    return jsonify({"success": True, "result": result})
+
 @tasks_bp.route('/<int:task_id>/logs', methods=['GET'])
 @require_auth
 def get_task_logs(task_id):

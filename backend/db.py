@@ -167,6 +167,19 @@ def init_db():
             """)
 
             cur.execute("""
+            CREATE TABLE IF NOT EXISTS subtasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id INT NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                is_done TINYINT(1) DEFAULT 0,
+                order_index INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                INDEX idx_subtasks_task (task_id, order_index)
+            );
+            """)
+
+            cur.execute("""
             CREATE TABLE IF NOT EXISTS badges (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT,
@@ -238,6 +251,18 @@ def init_db():
                 task_id INTEGER,
                 change_description TEXT,
                 changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            );
+            """)
+
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS subtasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                is_done INTEGER DEFAULT 0,
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
             """)

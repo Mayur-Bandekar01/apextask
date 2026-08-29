@@ -34,7 +34,11 @@ class TodoAppTestCase(unittest.TestCase):
             "title": "Master Full-Stack Suite",
             "notes": "Verify tables, logs and cross-day synchronization",
             "priority": "high",
-            "deadline": (datetime.datetime.now() + datetime.timedelta(hours=4)).strftime("%Y-%m-%d %H:%M:%S")
+            "deadline": (datetime.datetime.now() + datetime.timedelta(hours=4)).strftime("%Y-%m-%d %H:%M:%S"),
+            "subtasks": [
+                {"title": "Subtask 1 — Setup", "is_done": False},
+                {"title": "Subtask 2 — Execute", "is_done": False}
+            ]
         }
         res = self.client.post('/api/tasks', data=json.dumps(payload), content_type='application/json')
         self.assertEqual(res.status_code, 201)
@@ -42,8 +46,18 @@ class TodoAppTestCase(unittest.TestCase):
         self.assertTrue(data['success'])
         self.assertEqual(data['task']['title'], "Master Full-Stack Suite")
         self.assertEqual(data['task']['priority'], "high")
+        self.assertEqual(len(data['task']['subtasks']), 2)
         task_id = data['task']['id']
-        print(f"[TEST 3] Task Created with ID: {task_id}")
+        subtask_id = data['task']['subtasks'][0]['id']
+        print(f"[TEST 3] Task Created with ID: {task_id}, Subtask ID: {subtask_id}")
+
+        # Test subtask PATCH toggle
+        res_st = self.client.patch(f'/api/subtasks/{subtask_id}', data=json.dumps({"is_done": True}), content_type='application/json')
+        self.assertEqual(res_st.status_code, 200)
+        st_data = res_st.get_json()
+        self.assertTrue(st_data['success'])
+        self.assertTrue(st_data['subtask']['is_done'])
+        print(f"[TEST 3] Subtask toggled is_done=True successfully")
 
         # Check logs
         res_logs = self.client.get(f'/api/tasks/{task_id}/logs')

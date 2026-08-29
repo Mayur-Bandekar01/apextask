@@ -316,6 +316,42 @@ class TaskModel:
         }
 
     @staticmethod
+    def toggle_normal_subtask(task_id, subtask_index, user_id=1):
+        task = TaskModel.get_task_by_id(task_id, user_id)
+        if not task:
+            return None
+
+        subtasks = task.get('subtasks') or []
+        if subtask_index < 0 or subtask_index >= len(subtasks):
+            return None
+
+        st = subtasks[subtask_index]
+        is_done = not (st.get('is_done') or st.get('completed') or False)
+        st['is_done'] = is_done
+        st['completed'] = is_done
+
+        subtasks_json = json.dumps(subtasks)
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE tasks 
+                SET subtasks = %s 
+                WHERE id = %s AND user_id = %s;
+            """, (subtasks_json, task_id, user_id))
+
+            if hasattr(conn, 'commit'):
+                conn.commit()
+        conn.close()
+
+        return {
+            "task_id": task_id,
+            "subtask_index": subtask_index,
+            "is_done": is_done,
+            "subtasks": subtasks
+        }
+
+    @staticmethod
     def rollover_tasks(user_id=1):
         today = datetime.date.today().isoformat()
         conn = get_db_connection()

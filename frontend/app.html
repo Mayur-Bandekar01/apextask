@@ -21,9 +21,12 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
     <!-- Custom Modular Stylesheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2026.2">
 </head>
 <body>
+    <!-- Top Ambient Operation Loading Bar -->
+    <div class="top-loading-bar" id="top-loading-bar"></div>
+
     <!-- Ambient Background Lighting -->
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
@@ -38,6 +41,9 @@
         <!-- Top Gamification & Navigation Header -->
         <header class="app-header glass-card">
             <div class="header-left">
+                <button class="mobile-nav-toggle" id="btn-mobile-menu-toggle" aria-label="Toggle Navigation Menu" title="Toggle Navigation Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="brand">
                     <div class="brand-icon">
                         <i class="fa-solid fa-bolt-lightning"></i>
@@ -158,6 +164,9 @@
         <!-- Body Layout Container: Fixed Sidebar + Expanded Main Content Area -->
         <div class="app-body-container">
             
+            <!-- Mobile Sidebar Backdrop -->
+            <div class="mobile-sidebar-backdrop hidden" id="mobile-sidebar-backdrop"></div>
+
             <!-- Dedicated Fixed Left Sidebar -->
             <aside class="app-sidebar glass-card" id="app-sidebar">
                 <div class="sidebar-section-title">
@@ -233,7 +242,6 @@
                         <button class="filter-pill active" data-filter="all">All</button>
                         <button class="filter-pill" data-filter="pending">Pending</button>
                         <button class="filter-pill" data-filter="complete">Completed</button>
-                        <button class="filter-pill" data-filter="boss">👑 Boss Battles</button>
                         <button class="filter-pill" data-filter="high">High Priority</button>
                         <button class="filter-pill" data-filter="rolled">Rolled Over</button>
                     </div>
@@ -498,7 +506,7 @@
     <div class="modal-backdrop hidden" id="task-modal-backdrop">
         <div class="slide-panel glass-card" id="task-modal-panel">
             <div class="panel-header">
-                <h3 id="task-modal-title"><i class="fa-solid fa-plus"></i> Create New Mission</h3>
+                <h3 id="task-modal-title"><span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span> Create New Mission</h3>
                 <button class="btn-close-modal" id="btn-close-task-modal"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
@@ -544,16 +552,19 @@
                     <input type="text" id="task-form-tags" class="form-control" placeholder="e.g., #engineering, #urgent, #deepwork">
                 </div>
 
-                <div class="form-group boss-toggle-group">
-                    <label class="boss-checkbox-label">
-                        <input type="checkbox" id="task-form-is-boss">
-                        <span class="boss-toggle-badge"><i class="fa-solid fa-crown text-gold"></i> Spawn as Multi-Stage Boss Battle (3x XP Bonus)</span>
-                    </label>
-                </div>
-
                 <div class="form-group">
                     <label for="task-form-notes">Mission Notes & Sub-details</label>
                     <textarea id="task-form-notes" class="form-control" rows="3" placeholder="Context, checklists, or reference links..."></textarea>
+                </div>
+
+                <div class="form-group subtask-section">
+                    <div class="subtask-header-row">
+                        <label><i class="fa-solid fa-list-check"></i> Subtasks</label>
+                        <button type="button" class="btn-add-subtask" id="btn-add-subtask">
+                            <i class="fa-solid fa-plus"></i> Add Subtask
+                        </button>
+                    </div>
+                    <div id="subtask-list" class="subtask-list"></div>
                 </div>
 
                 <div class="panel-footer">
@@ -724,14 +735,26 @@
                 <div style="display: flex; justify-content: center; gap: 12px; margin-top: 10px;">
                     <button class="btn btn-glass" id="btn-cancel-delete">Cancel</button>
                     <button class="btn btn-primary" id="btn-confirm-delete" style="background: #ef4444; border-color: #ef4444;">
-                        <i class="fa-solid fa-trash"></i> Delete Mission
+                        <i class="fa-solid fa-trash" id="btn-confirm-delete-icon"></i>
+                        <span id="btn-confirm-delete-text">Delete Mission</span>
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Global Orbital Loading Overlay -->
+    <div class="global-loading-overlay hidden" id="global-loading-overlay">
+        <div class="orbital-loader-container">
+            <div class="orbital-ring ring-1"></div>
+            <div class="orbital-ring ring-2"></div>
+            <div class="orbital-ring ring-3"></div>
+            <div class="orbital-core"><i class="fa-solid fa-bolt"></i></div>
+        </div>
+        <div class="loading-status-text" id="loading-status-text">Synchronizing with cloud...</div>
+    </div>
+
     <!-- Application Script -->
-    <script src="app.js"></script>
+    <script src="app.js?v=2026.2"></script>
 </body>
 </html>

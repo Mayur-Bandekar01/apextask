@@ -21,7 +21,114 @@ const state = {
     yearlyChart: null,
     dateTasksModalData: null,
     taskToDeleteId: null
-};
+// ==================== API QUEUE & LOADING / ANIMATION HELPERS ====================
+class APIQueue {
+    constructor() {
+        this.queue = Promise.resolve();
+    }
+    enqueue(fn) {
+        this.queue = this.queue.then(fn).catch(err => {
+            console.error('[APIQueue Error]', err);
+        });
+        return this.queue;
+    }
+}
+const apiQueue = new APIQueue();
+
+function showGlobalLoading(statusText = 'Synchronizing with cloud...') {
+    const overlay = document.getElementById('global-loading-overlay');
+    const textEl = document.getElementById('loading-status-text');
+    if (!overlay) return;
+    if (textEl) textEl.textContent = statusText;
+    overlay.classList.remove('hidden', 'fade-out');
+}
+
+function hideGlobalLoading() {
+    const overlay = document.getElementById('global-loading-overlay');
+    if (!overlay) return;
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('fade-out');
+    }, 200);
+}
+
+function triggerParticleBurst(x, y) {
+    const container = document.createElement('div');
+    container.className = 'burst-particle-container';
+    container.style.left = `${x || window.innerWidth / 2}px`;
+    container.style.top = `${y || window.innerHeight / 2}px`;
+
+    const colors = ['#7c3aed', '#fbbf24', '#10b981', '#ec4899', '#38bdf8', '#a855f7', '#f59e0b', '#ef4444'];
+    const angles = [0, 45, 90, 135, 180, 225, 270, 315];
+
+    angles.forEach((angle, i) => {
+        const p = document.createElement('div');
+        p.className = 'burst-particle';
+        p.style.backgroundColor = colors[i % colors.length];
+
+        const distance = 40 + Math.random() * 25;
+        const rad = (angle * Math.PI) / 180;
+        const tx = Math.cos(rad) * distance;
+        const ty = Math.sin(rad) * distance;
+
+        p.style.setProperty('--tx', `${tx}px`);
+        p.style.setProperty('--ty', `${ty}px`);
+        container.appendChild(p);
+    });
+
+    document.body.appendChild(container);
+    setTimeout(() => container.remove(), 600);
+}
+
+function animateMilestoneWipe() {
+    const fill = document.getElementById('xp-bar-fill') || document.querySelector('.xp-progress-bar-fill');
+    if (!fill) return;
+    fill.classList.add('milestone-bar-wipe');
+    setTimeout(() => fill.classList.remove('milestone-bar-wipe'), 450);
+}
+
+function animateXpCounter(fromXp, toXp, duration = 800) {
+    const xpCurrEl = document.getElementById('xp-current');
+    if (!xpCurrEl) return;
+
+    const start = performance.now();
+    const diff = toXp - fromXp;
+
+    function step(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const current = Math.floor(fromXp + diff * progress);
+        xpCurrEl.textContent = current.toLocaleString();
+
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        } else {
+            xpCurrEl.textContent = toXp.toLocaleString();
+        }
+    }
+    requestAnimationFrame(step);
+}
+
+function renderSkeletonCards(containerId = 'today-tasks-list', count = 4) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    let html = '';
+    for (let i = 0; i < count; i++) {
+        html += `
+            <div class="skeleton-task-card">
+                <div class="skeleton-shimmer skeleton-title-bar"></div>
+                <div class="skeleton-shimmer skeleton-notes-bar"></div>
+                <div class="skeleton-pills-row">
+                    <div class="skeleton-shimmer skeleton-pill-box"></div>
+                    <div class="skeleton-shimmer skeleton-pill-box"></div>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
 
 // ==================== AUTH GUARD & HELPERS ====================
 function getAuthToken() {
@@ -184,10 +291,42 @@ class SoundFX {
 
 const audio = new SoundFX();
 
+// Ambient Top Loading Progress Bar Controller
+let loadingBarTimer = null;
+function startTopLoadingBar() {
+    const bar = document.getElementById('top-loading-bar');
+    if (!bar) return;
+    if (loadingBarTimer) clearInterval(loadingBarTimer);
+    bar.style.opacity = '1';
+    bar.style.width = '15%';
+
+    let currentWidth = 15;
+    loadingBarTimer = setInterval(() => {
+        if (currentWidth < 85) {
+            currentWidth += Math.random() * 15;
+            bar.style.width = `${currentWidth}%`;
+        }
+    }, 180);
+}
+
+function finishTopLoadingBar() {
+    const bar = document.getElementById('top-loading-bar');
+    if (!bar) return;
+    if (loadingBarTimer) clearInterval(loadingBarTimer);
+    bar.style.width = '100%';
+    setTimeout(() => {
+        bar.style.opacity = '0';
+        setTimeout(() => {
+            bar.style.width = '0%';
+        }, 300);
+    }, 200);
+}
+
 // ==================== REST API CLIENT WITH JWT ====================
 async function api(endpoint, options = {}) {
     const url = `${API_BASE}${endpoint}`;
     const token = getAuthToken();
+    startTopLoadingBar();
 
     try {
         const fetchOpts = { ...options };
@@ -231,6 +370,8 @@ async function api(endpoint, options = {}) {
     } catch (err) {
         console.error(`[API Error] ${endpoint}:`, err);
         throw err;
+    } finally {
+        finishTopLoadingBar();
     }
 }
 
@@ -384,6 +525,7 @@ function renderGamificationHeader() {
 
 // ==================== TASKS MODULE (TODAY & DRILLDOWN) ====================
 async function loadTodayTasks() {
+    renderSkeletonCards('today-tasks-list', 4);
     try {
         const data = await api('/tasks/today');
         if (data.success) {
@@ -529,36 +671,6 @@ function createTaskCardHTML(t) {
         `;
     }
 
-    // Boss Battle HP Bar & Subtasks
-    let bossHTML = '';
-    if (isBoss) {
-        const hp = t.boss_hp !== undefined ? t.boss_hp : 100;
-        const subtasks = Array.isArray(t.subtasks) ? t.subtasks : [];
-
-        bossHTML = `
-            <div class="boss-hp-container">
-                <div class="boss-hp-header">
-                    <span class="boss-hp-title"><i class="fa-solid fa-crown text-gold"></i> BOSS HP</span>
-                    <span class="boss-hp-val">${hp}/100 HP</span>
-                </div>
-                <div class="boss-hp-bar-track">
-                    <div class="boss-hp-bar-fill" style="width: ${hp}%;"></div>
-                </div>
-
-                ${subtasks.length > 0 ? `
-                    <div class="boss-subtasks-list">
-                        ${subtasks.map((st, idx) => `
-                            <div class="boss-subtask-item ${st.completed ? 'is-done' : ''}" onclick="handleBossDamage(${t.id}, ${idx})" title="Strike Boss Phase">
-                                <i class="fa-solid ${st.completed ? 'fa-square-check text-emerald' : 'fa-square'}"></i>
-                                <span>${escapeHTML(st.title || `Phase ${idx+1}`)}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
     // Tags
     let tagsHTML = '';
     if (t.tags) {
@@ -568,10 +680,28 @@ function createTaskCardHTML(t) {
         }
     }
 
+    // Subtasks Checklist
+    let subtasksHTML = '';
+    if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+        subtasksHTML = `
+            <div class="task-card-subtasks">
+                ${t.subtasks.map((st, idx) => {
+                    const isDone = Boolean(st.is_done || st.completed);
+                    return `
+                        <label class="card-subtask-item ${isDone ? 'is-done' : ''}" onclick="event.stopPropagation(); handleSubtaskToggle(${t.id}, ${idx})">
+                            <input type="checkbox" class="card-subtask-check" ${isDone ? 'checked' : ''} onclick="event.stopPropagation()">
+                            <span>${escapeHTML(st.title)}</span>
+                        </label>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
     return `
-        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${isBoss ? 'is-boss' : ''} ${glowClass}" data-task-id="${t.id}">
+        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${glowClass}" data-task-id="${t.id}">
             <div class="task-card-header">
-                <button class="task-check-btn" title="${isComplete ? 'Mark Incomplete' : (isBoss ? 'Defeat Boss (+3x XP)' : 'Mark Complete')}" data-action="toggle-complete">
+                <button class="task-check-btn" title="${isComplete ? 'Mark Incomplete' : 'Mark Complete'}" data-action="toggle-complete">
                     <i class="fa-solid fa-check"></i>
                 </button>
 
@@ -579,10 +709,9 @@ function createTaskCardHTML(t) {
                     <div class="task-title">${escapeHTML(t.title)}</div>
                     ${t.notes ? `<div class="task-notes">${escapeHTML(t.notes)}</div>` : ''}
 
-                    ${bossHTML}
+                    ${subtasksHTML}
 
                     <div class="task-tags-row">
-                        ${isBoss ? `<span class="boss-badge-tag"><i class="fa-solid fa-crown"></i> Boss Battle (3x XP)</span>` : ''}
                         <span class="priority-tag priority-${t.priority || 'medium'}">${t.priority || 'medium'}</span>
                         ${tagsHTML}
                         
@@ -622,6 +751,12 @@ function createTaskCardHTML(t) {
 
 // ==================== TASK ACTIONS ====================
 async function handleToggleComplete(taskId) {
+    const checkBtn = document.querySelector(`[data-task-id="${taskId}"] .task-check-btn`);
+    if (checkBtn) {
+        checkBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:12px;color:var(--primary);"></i>';
+        checkBtn.style.pointerEvents = 'none';
+    }
+
     try {
         const res = await api(`/tasks/${taskId}/complete`, { method: 'PUT' });
         if (res.success && res.result) {
@@ -767,6 +902,18 @@ async function confirmDeleteTask() {
     const taskId = state.taskToDeleteId;
     if (!taskId) return;
 
+    const btnConfirm = document.getElementById('btn-confirm-delete');
+    const originalText = btnConfirm ? btnConfirm.innerHTML : 'Delete';
+
+    // Highlight target task card with deleting state immediately
+    const card = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (card) card.classList.add('is-deleting');
+
+    if (btnConfirm) {
+        btnConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting Mission...';
+        btnConfirm.disabled = true;
+    }
+
     try {
         const res = await api(`/tasks/${taskId}`, { method: 'DELETE' });
         if (res.success) {
@@ -783,7 +930,13 @@ async function confirmDeleteTask() {
         }
     } catch (e) {
         showToast(e.message, 'danger');
+        if (card) card.classList.remove('is-deleting');
         closeDeleteConfirmModal();
+    } finally {
+        if (btnConfirm) {
+            btnConfirm.innerHTML = originalText;
+            btnConfirm.disabled = false;
+        }
     }
 }
 
@@ -804,6 +957,67 @@ async function triggerAutoRollover(manual = false) {
     }
 }
 
+// ==================== SUBTASK HELPER & MODAL INITIALIZATION ====================
+let bossListenerAttached = false;
+
+function createSubtaskRow(title = '', isDone = false) {
+    const list = document.getElementById('subtask-list');
+    if (!list) return;
+
+    const row = document.createElement('div');
+    row.className = 'subtask-row';
+    row.innerHTML = `
+        <input type="checkbox" class="subtask-row-check" ${isDone ? 'checked' : ''}>
+        <input type="text" class="form-control subtask-row-title" placeholder="Subtask title..." value="${escapeHTML(title)}">
+        <button type="button" class="btn-remove-subtask" title="Remove subtask">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    `;
+
+    const removeBtn = row.querySelector('.btn-remove-subtask');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            row.remove();
+        });
+    }
+
+    list.appendChild(row);
+}
+
+async function handleSubtaskToggle(taskId, subtaskIndex) {
+    try {
+        startTopLoadingBar();
+        const res = await api(`/tasks/${taskId}/subtasks/${subtaskIndex}/toggle`, {
+            method: 'POST'
+        });
+        if (res.success) {
+            audio.play('click');
+            await loadTodayTasks();
+            if (state.currentTab === 'weekly') loadWeeklyDashboard();
+            if (state.currentTab === 'monthly') loadMonthlyDashboard();
+        }
+    } catch (err) {
+        showToast(err.message, 'danger');
+    }
+}
+
+function initModal() {
+    const btnAddSubtask = document.getElementById('btn-add-subtask');
+    if (btnAddSubtask && !btnAddSubtask.dataset.listenerAttached) {
+        btnAddSubtask.dataset.listenerAttached = 'true';
+        btnAddSubtask.addEventListener('click', () => {
+            createSubtaskRow('', false);
+        });
+    }
+}
+
+function getLocalDateString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // ==================== TASK MODAL (ADD / EDIT) ====================
 function openAddTaskModal() {
     const backdrop = document.getElementById('task-modal-backdrop');
@@ -815,17 +1029,17 @@ function openAddTaskModal() {
 
     form.reset();
     document.getElementById('task-form-id').value = '';
-    titleEl.innerHTML = '<i class="fa-solid fa-plus"></i> Create New Mission';
+    titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span> Create New Mission';
     submitText.textContent = 'Save Task';
 
     const tagsInput = document.getElementById('task-form-tags');
     if (tagsInput) tagsInput.value = '';
 
-    const bossCheck = document.getElementById('task-form-is-boss');
-    if (bossCheck) bossCheck.checked = false;
+    const subtaskList = document.getElementById('subtask-list');
+    if (subtaskList) subtaskList.innerHTML = '';
 
     const dateInput = document.getElementById('task-form-date');
-    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+    if (dateInput) dateInput.value = getLocalDateString();
 
     backdrop.classList.remove('hidden');
     document.getElementById('task-form-title').focus();
@@ -846,9 +1060,14 @@ function openEditTaskModal(taskId) {
     const tagsInput = document.getElementById('task-form-tags');
     if (tagsInput) tagsInput.value = task.tags || '';
 
-    const bossCheck = document.getElementById('task-form-is-boss');
-    if (bossCheck) bossCheck.checked = Boolean(task.is_boss);
-    
+    const subtaskList = document.getElementById('subtask-list');
+    if (subtaskList) {
+        subtaskList.innerHTML = '';
+        if (Array.isArray(task.subtasks) && task.subtasks.length > 0) {
+            task.subtasks.forEach(st => createSubtaskRow(st.title, st.is_done));
+        }
+    }
+
     const priority = task.priority || 'medium';
     const radio = document.querySelector(`input[name="task_priority"][value="${priority}"]`);
     if (radio) radio.checked = true;
@@ -863,7 +1082,7 @@ function openEditTaskModal(taskId) {
         document.getElementById('task-form-deadline').value = '';
     }
 
-    titleEl.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> Edit Mission Details';
+    titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-pen-to-square"></i></span> Edit Mission Details';
     submitText.textContent = 'Update Task';
 
     backdrop.classList.remove('hidden');
@@ -873,6 +1092,8 @@ function openEditTaskModal(taskId) {
 function closeTaskModal() {
     const backdrop = document.getElementById('task-modal-backdrop');
     if (backdrop) backdrop.classList.add('hidden');
+    const btnSubmit = document.getElementById('btn-submit-task-form');
+    if (btnSubmit) btnSubmit.disabled = false;
 }
 
 async function handleTaskFormSubmit(e) {
@@ -893,7 +1114,18 @@ async function handleTaskFormSubmit(e) {
     const deadlineVal = document.getElementById('task-form-deadline').value;
     const deadline = deadlineVal ? deadlineVal.replace('T', ' ') + ':00' : null;
     const tags = document.getElementById('task-form-tags') ? document.getElementById('task-form-tags').value.trim() : '';
-    const isBoss = document.getElementById('task-form-is-boss') ? document.getElementById('task-form-is-boss').checked : false;
+
+    const subtaskRows = document.querySelectorAll('#subtask-list .subtask-row');
+    const subtasks = [];
+    subtaskRows.forEach((row, idx) => {
+        const titleEl = row.querySelector('.subtask-row-title');
+        const checkEl = row.querySelector('.subtask-row-check');
+        const stTitle = titleEl ? titleEl.value.trim() : '';
+        const isDone = checkEl ? checkEl.checked : false;
+        if (stTitle) {
+            subtasks.push({ title: stTitle, is_done: isDone, order_index: idx });
+        }
+    });
 
     const payload = {
         title,
@@ -902,40 +1134,87 @@ async function handleTaskFormSubmit(e) {
         original_date: originalDate,
         deadline,
         tags,
-        is_boss: isBoss
+        subtasks
     };
 
-    try {
-        if (taskId) {
-            const res = await api(`/tasks/${taskId}`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
-            });
-            if (res.success) {
-                audio.play('click');
-                showToast('Task updated successfully!', 'success');
-            }
-        } else {
-            const res = await api('/tasks', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-            if (res.success) {
-                audio.play('click');
-                showToast(isBoss ? '👑 Boss Battle spawned!' : 'Task created and logged!', 'success');
+    const btnSubmit = document.getElementById('btn-submit-task-form');
+    const submitText = document.getElementById('task-form-submit-text');
+    if (submitText) submitText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving Mission...';
+    if (btnSubmit) btnSubmit.disabled = true;
+
+    closeTaskModal();
+
+    if (!taskId) {
+        // Optimistic Add: Instantly append temp card to container
+        const tempId = 'temp_' + Date.now();
+        const tempTask = {
+            id: tempId,
+            title,
+            notes,
+            priority,
+            original_date: originalDate || getLocalDateString(),
+            deadline,
+            tags,
+            is_boss: isBoss,
+            status: 'pending',
+            subtasks
+        };
+
+        const container = document.getElementById('today-tasks-list');
+        if (container) {
+            const tempHTML = createTaskCardHTML(tempTask);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = tempHTML;
+            const tempCard = tempDiv.firstElementChild;
+            if (tempCard) {
+                tempCard.classList.add('task-card-pending-optimistic', 'task-card-slide-in');
+                container.prepend(tempCard);
             }
         }
 
-        closeTaskModal();
-        await loadTodayTasks();
-        await loadUserProfile();
-        updateTabBadges();
-        if (state.currentTab === 'weekly') loadWeeklyDashboard();
-        if (state.currentTab === 'monthly') loadMonthlyDashboard();
-        if (state.currentTab === 'yearly') loadYearlyDashboard();
-        if (state.currentTab === 'shame') loadShameBoard();
-    } catch (err) {
-        showToast(err.message, 'danger');
+        showGlobalLoading('Deploying mission...');
+
+        apiQueue.enqueue(async () => {
+            try {
+                const res = await api('/tasks', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                hideGlobalLoading();
+                if (res.success) {
+                    audio.play('click');
+                    showToast('Task created and logged!', 'success');
+                    await loadTodayTasks();
+                    await loadUserProfile();
+                    updateTabBadges();
+                }
+            } catch (err) {
+                hideGlobalLoading();
+                const tempCard = document.querySelector(`[data-task-id="${tempId}"]`);
+                if (tempCard) tempCard.remove();
+                showToast(`Failed to create task: ${err.message}`, 'danger');
+            }
+        });
+    } else {
+        // Edit Task
+        showGlobalLoading('Updating mission...');
+        apiQueue.enqueue(async () => {
+            try {
+                const res = await api(`/tasks/${taskId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                hideGlobalLoading();
+                if (res.success) {
+                    audio.play('click');
+                    showToast('Task updated successfully!', 'success');
+                    await loadTodayTasks();
+                }
+            } catch (err) {
+                hideGlobalLoading();
+                showToast(err.message, 'danger');
+            }
+        });
     }
 }
 
@@ -1368,6 +1647,67 @@ function renderBadgesShowcase(badges) {
     }).join('');
 }
 
+// ==================== DELETE MISSION MODAL & OPTIMISTIC DELETE ====================
+function openDeleteConfirmModal(taskId) {
+    state.taskToDeleteId = taskId;
+    const backdrop = document.getElementById('delete-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('hidden');
+}
+
+function closeDeleteConfirmModal() {
+    state.taskToDeleteId = null;
+    const backdrop = document.getElementById('delete-modal-backdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+}
+
+async function confirmDeleteTask() {
+    const taskId = state.taskToDeleteId;
+    if (!taskId) return;
+
+    closeDeleteConfirmModal();
+
+    // 1. Optimistic UI: Find task card and trigger 300ms collapse + slide-out fade
+    const card = document.querySelector(`[data-task-id="${taskId}"]`);
+    const backupTask = (state.tasks || []).find(t => t.id === taskId);
+    const backupIndex = (state.tasks || []).findIndex(t => t.id === taskId);
+
+    if (card) {
+        card.classList.add('is-deleting');
+    }
+
+    // Remove from local state immediately
+    if (backupIndex !== -1) {
+        state.tasks.splice(backupIndex, 1);
+    }
+
+    // Remove DOM element after 300ms transition
+    setTimeout(() => {
+        if (card && card.parentNode) card.remove();
+        updateTabBadges();
+    }, 300);
+
+    // 2. Queue background API call
+    apiQueue.enqueue(async () => {
+        try {
+            await api(`/tasks/${taskId}`, { method: 'DELETE' });
+            audio.play('click');
+            showToast('Mission obliterated!', 'info');
+        } catch (err) {
+            showToast(`Failed to delete task: ${err.message}`, 'danger');
+            // Rollback optimistic delete: restore to state and re-render with red shake
+            if (backupTask && backupIndex !== -1) {
+                state.tasks.splice(backupIndex, 0, backupTask);
+            }
+            await loadTodayTasks();
+            const restoredCard = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (restoredCard) {
+                restoredCard.classList.add('shake-card-error');
+                setTimeout(() => restoredCard.classList.remove('shake-card-error'), 500);
+            }
+        }
+    });
+}
+
 // ==================== MYSTERY REWARD CHEST ====================
 async function openRewardChestModal() {
     const backdrop = document.getElementById('chest-modal-backdrop');
@@ -1376,6 +1716,8 @@ async function openRewardChestModal() {
     backdrop.classList.remove('hidden');
     audio.play('chest');
     launchConfetti('golden');
+    triggerParticleBurst(window.innerWidth / 2, window.innerHeight / 2);
+    animateMilestoneWipe();
 
     try {
         const res = await api('/rewards/chest', { method: 'POST' });
@@ -1731,22 +2073,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Mobile Navigation Sidebar Drawer Controller
+    const btnMobileMenuToggle = document.getElementById('btn-mobile-menu-toggle');
+    const appSidebar = document.getElementById('app-sidebar');
+    const mobileBackdrop = document.getElementById('mobile-sidebar-backdrop');
+
+    function openMobileSidebar() {
+        if (appSidebar) appSidebar.classList.add('mobile-open');
+        if (mobileBackdrop) mobileBackdrop.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeMobileSidebar() {
+        if (appSidebar) appSidebar.classList.remove('mobile-open');
+        if (mobileBackdrop) mobileBackdrop.classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    if (btnMobileMenuToggle) {
+        btnMobileMenuToggle.addEventListener('click', () => {
+            if (appSidebar && appSidebar.classList.contains('mobile-open')) {
+                closeMobileSidebar();
+            } else {
+                openMobileSidebar();
+            }
+        });
+    }
+
+    if (mobileBackdrop) {
+        mobileBackdrop.addEventListener('click', closeMobileSidebar);
+    }
+
     // 3. Navigation Tabs Switching
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabId = tab.dataset.tab;
+            if (state.currentTab === tabId) return;
+
             state.currentTab = tabId;
             audio.play('click');
+            closeMobileSidebar();
+            startTopLoadingBar();
 
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
-            document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
+            document.querySelectorAll('.view-section').forEach(sec => {
+                sec.classList.add('hidden');
+                sec.classList.remove('view-section-fade-in');
+            });
             const targetSection = document.getElementById(`view-${tabId}`);
-            if (targetSection) targetSection.classList.remove('hidden');
+            if (targetSection) {
+                targetSection.classList.remove('hidden');
+                void targetSection.offsetWidth; // Trigger reflow for animation
+                targetSection.classList.add('view-section-fade-in');
+            }
 
-            if (tabId === 'today') loadTodayTasks();
-            else if (tabId === 'challenges') loadChallenges();
+            if (tabId === 'today') {
+                renderSkeletonCards('today-task-list', 3);
+                loadTodayTasks();
+            } else if (tabId === 'challenges') loadChallenges();
             else if (tabId === 'weekly') loadWeeklyDashboard();
             else if (tabId === 'monthly') loadMonthlyDashboard();
             else if (tabId === 'yearly') loadYearlyDashboard();
@@ -1758,11 +2144,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 4. Filter Pills in Today's View
     document.querySelectorAll('.filter-pill').forEach(pill => {
         pill.addEventListener('click', () => {
-            state.currentFilter = pill.dataset.filter;
+            const filterVal = pill.dataset.filter;
+            if (state.currentFilter === filterVal) return;
+
+            state.currentFilter = filterVal;
             audio.play('click');
+            startTopLoadingBar();
+
             document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
             pill.classList.add('active');
-            renderTodayTasks();
+
+            // Quick skeleton pulse transition for filter shift
+            renderSkeletonCards('today-task-list', 2);
+            setTimeout(() => {
+                renderTodayTasks();
+                finishTopLoadingBar();
+            }, 120);
         });
     });
 
@@ -1935,9 +2332,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    // 8. Task Form Submit
+    // 8. Task Form Submit & Modal Initialization
     const taskForm = document.getElementById('task-form');
     if (taskForm) taskForm.addEventListener('submit', handleTaskFormSubmit);
+    initModal();
 
     // Live Date Display Helper
     function updateLiveDateDisplay() {

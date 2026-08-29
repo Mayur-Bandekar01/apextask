@@ -28,6 +28,22 @@ app.register_blueprint(tasks_bp)
 app.register_blueprint(records_bp)
 app.register_blueprint(gamification_bp)
 
+@app.after_request
+def add_keep_alive_headers(response):
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['Keep-Alive'] = 'timeout=5, max=100'
+    return response
+
+@app.route('/api/subtasks/<int:subtask_id>', methods=['PATCH', 'PUT'])
+def api_subtasks_patch(subtask_id):
+    from backend.models.task import TaskModel
+    data = request.get_json(silent=True) or {}
+    is_done = data.get('is_done')
+    subtask = TaskModel.toggle_subtask(subtask_id, is_done=is_done)
+    if not subtask:
+        return jsonify({"success": False, "error": "Subtask not found"}), 404
+    return jsonify({"success": True, "subtask": subtask, "message": "Subtask updated successfully"})
+
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'index.html')

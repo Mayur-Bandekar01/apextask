@@ -33,6 +33,7 @@ def add_task():
     priority = data.get('priority', 'medium').lower()
     deadline = data.get('deadline')
     original_date = data.get('original_date')
+    subtasks = data.get('subtasks')
 
     task = TaskModel.create_task(
         user_id=user_id,
@@ -40,7 +41,8 @@ def add_task():
         notes=notes,
         priority=priority,
         deadline=deadline,
-        original_date=original_date
+        original_date=original_date,
+        subtasks=subtasks
     )
     return jsonify({"success": True, "task": task, "message": "Task created successfully"}), 201
 
@@ -55,6 +57,7 @@ def edit_task(task_id):
     notes = data.get('notes', '')
     priority = data.get('priority', 'medium').lower()
     deadline = data.get('deadline')
+    subtasks = data.get('subtasks')
 
     task = TaskModel.update_task(
         task_id=task_id,
@@ -62,12 +65,22 @@ def edit_task(task_id):
         title=title,
         notes=notes,
         priority=priority,
-        deadline=deadline
+        deadline=deadline,
+        subtasks=subtasks
     )
     if not task:
         return jsonify({"success": False, "error": "Task not found"}), 404
 
     return jsonify({"success": True, "task": task, "message": "Task updated successfully"})
+
+@tasks_bp.route('/subtasks/<int:subtask_id>', methods=['PATCH', 'PUT'])
+def update_subtask_route(subtask_id):
+    data = request.get_json(silent=True) or {}
+    is_done = data.get('is_done')
+    subtask = TaskModel.toggle_subtask(subtask_id, is_done=is_done)
+    if not subtask:
+        return jsonify({"success": False, "error": "Subtask not found"}), 404
+    return jsonify({"success": True, "subtask": subtask, "message": "Subtask updated successfully"})
 
 @tasks_bp.route('/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
