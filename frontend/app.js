@@ -112,7 +112,7 @@ function animateXpCounter(fromXp, toXp, duration = 800) {
     requestAnimationFrame(step);
 }
 
-function renderSkeletonCards(containerId = 'today-tasks-list', count = 4) {
+function renderSkeletonCards(containerId = 'today-task-list', count = 4) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
@@ -527,7 +527,7 @@ function renderGamificationHeader() {
 
 // ==================== TASKS MODULE (TODAY & DRILLDOWN) ====================
 async function loadTodayTasks() {
-    renderSkeletonCards('today-tasks-list', 4);
+    renderSkeletonCards('today-task-list', 4);
     try {
         const data = await api('/tasks/today');
         if (data.success) {
@@ -1051,12 +1051,19 @@ function openAddTaskModal() {
     if (!backdrop || !form) return;
 
     form.reset();
-    document.getElementById('task-form-id').value = '';
-    titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span> Create New Mission';
-    submitText.textContent = 'Save Task';
+    const idInput = document.getElementById('task-form-id');
+    if (idInput) idInput.value = '';
+    if (titleEl) titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span> Create New Mission';
+    if (submitText) submitText.textContent = 'Save Task';
+
+    const defaultPriority = document.querySelector('input[name="task_priority"][value="medium"]');
+    if (defaultPriority) defaultPriority.checked = true;
 
     const tagsInput = document.getElementById('task-form-tags');
     if (tagsInput) tagsInput.value = '';
+
+    const notesInput = document.getElementById('task-form-notes');
+    if (notesInput) notesInput.value = '';
 
     const subtaskList = document.getElementById('subtask-list');
     if (subtaskList) subtaskList.innerHTML = '';
@@ -1064,8 +1071,17 @@ function openAddTaskModal() {
     const dateInput = document.getElementById('task-form-date');
     if (dateInput) dateInput.value = getLocalDateString();
 
+    const deadlineInput = document.getElementById('task-form-deadline');
+    if (deadlineInput) deadlineInput.value = '';
+
+    const btnSubmit = document.getElementById('btn-submit-task-form');
+    if (btnSubmit) btnSubmit.disabled = false;
+
     backdrop.classList.remove('hidden');
-    document.getElementById('task-form-title').focus();
+    const titleInput = document.getElementById('task-form-title');
+    if (titleInput) {
+        setTimeout(() => titleInput.focus(), 50);
+    }
 }
 
 function openEditTaskModal(taskId) {
@@ -1076,9 +1092,12 @@ function openEditTaskModal(taskId) {
     const titleEl = document.getElementById('task-modal-title');
     const submitText = document.getElementById('task-form-submit-text');
 
-    document.getElementById('task-form-id').value = task.id;
-    document.getElementById('task-form-title').value = task.title;
-    document.getElementById('task-form-notes').value = task.notes || '';
+    const idInput = document.getElementById('task-form-id');
+    if (idInput) idInput.value = task.id;
+    const titleInput = document.getElementById('task-form-title');
+    if (titleInput) titleInput.value = task.title;
+    const notesInput = document.getElementById('task-form-notes');
+    if (notesInput) notesInput.value = task.notes || '';
 
     const tagsInput = document.getElementById('task-form-tags');
     if (tagsInput) tagsInput.value = task.tags || '';
@@ -1095,21 +1114,31 @@ function openEditTaskModal(taskId) {
     const radio = document.querySelector(`input[name="task_priority"][value="${priority}"]`);
     if (radio) radio.checked = true;
 
-    document.getElementById('task-form-date').value = task.original_date || '';
-    if (task.deadline) {
-        const d = new Date(task.deadline);
-        const pad = n => String(n).padStart(2, '0');
-        const dtStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        document.getElementById('task-form-deadline').value = dtStr;
-    } else {
-        document.getElementById('task-form-deadline').value = '';
+    const dateInput = document.getElementById('task-form-date');
+    if (dateInput) dateInput.value = task.original_date || '';
+
+    const deadlineInput = document.getElementById('task-form-deadline');
+    if (deadlineInput) {
+        if (task.deadline) {
+            const d = new Date(task.deadline);
+            const pad = n => String(n).padStart(2, '0');
+            const dtStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            deadlineInput.value = dtStr;
+        } else {
+            deadlineInput.value = '';
+        }
     }
 
-    titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-pen-to-square"></i></span> Edit Mission Details';
-    submitText.textContent = 'Update Task';
+    if (titleEl) titleEl.innerHTML = '<span class="modal-title-badge"><i class="fa-solid fa-pen-to-square"></i></span> Edit Mission Details';
+    if (submitText) submitText.textContent = 'Update Task';
 
-    backdrop.classList.remove('hidden');
-    document.getElementById('task-form-title').focus();
+    const btnSubmit = document.getElementById('btn-submit-task-form');
+    if (btnSubmit) btnSubmit.disabled = false;
+
+    if (backdrop) backdrop.classList.remove('hidden');
+    if (titleInput) {
+        setTimeout(() => titleInput.focus(), 50);
+    }
 }
 
 function closeTaskModal() {
@@ -1117,26 +1146,35 @@ function closeTaskModal() {
     if (backdrop) backdrop.classList.add('hidden');
     const btnSubmit = document.getElementById('btn-submit-task-form');
     if (btnSubmit) btnSubmit.disabled = false;
+    const submitText = document.getElementById('task-form-submit-text');
+    if (submitText) submitText.textContent = 'Save Task';
 }
 
 async function handleTaskFormSubmit(e) {
     e.preventDefault();
     const titleInput = document.getElementById('task-form-title');
-    const title = titleInput.value.trim();
+    const title = titleInput ? titleInput.value.trim() : '';
 
     if (!title) {
-        titleInput.classList.add('shake-error');
-        setTimeout(() => titleInput.classList.remove('shake-error'), 500);
+        if (titleInput) {
+            titleInput.classList.add('shake-error');
+            setTimeout(() => titleInput.classList.remove('shake-error'), 500);
+        }
         return;
     }
 
-    const taskId = document.getElementById('task-form-id').value;
-    const notes = document.getElementById('task-form-notes').value.trim();
-    const priority = document.querySelector('input[name="task_priority"]:checked').value;
-    const originalDate = document.getElementById('task-form-date').value;
-    const deadlineVal = document.getElementById('task-form-deadline').value;
+    const taskId = document.getElementById('task-form-id') ? document.getElementById('task-form-id').value : '';
+    const notesEl = document.getElementById('task-form-notes');
+    const notes = notesEl ? notesEl.value.trim() : '';
+    const priorityRadio = document.querySelector('input[name="task_priority"]:checked');
+    const priority = priorityRadio ? priorityRadio.value : 'medium';
+    const dateEl = document.getElementById('task-form-date');
+    const originalDate = dateEl && dateEl.value ? dateEl.value : getLocalDateString();
+    const deadlineEl = document.getElementById('task-form-deadline');
+    const deadlineVal = deadlineEl ? deadlineEl.value : '';
     const deadline = deadlineVal ? deadlineVal.replace('T', ' ') + ':00' : null;
-    const tags = document.getElementById('task-form-tags') ? document.getElementById('task-form-tags').value.trim() : '';
+    const tagsEl = document.getElementById('task-form-tags');
+    const tags = tagsEl ? tagsEl.value.trim() : '';
 
     const subtaskRows = document.querySelectorAll('#subtask-list .subtask-row');
     const subtasks = [];
@@ -1175,15 +1213,15 @@ async function handleTaskFormSubmit(e) {
             title,
             notes,
             priority,
-            original_date: originalDate || getLocalDateString(),
+            original_date: originalDate,
             deadline,
             tags,
-            is_boss: isBoss,
+            is_boss: false,
             status: 'pending',
             subtasks
         };
 
-        const container = document.getElementById('today-tasks-list');
+        const container = document.getElementById('today-task-list');
         if (container) {
             const tempHTML = createTaskCardHTML(tempTask);
             const tempDiv = document.createElement('div');
@@ -1194,6 +1232,8 @@ async function handleTaskFormSubmit(e) {
                 container.prepend(tempCard);
             }
         }
+        const emptyState = document.getElementById('today-empty-state');
+        if (emptyState) emptyState.classList.add('hidden');
 
         showGlobalLoading('Deploying mission...');
 
@@ -1215,6 +1255,9 @@ async function handleTaskFormSubmit(e) {
                 hideGlobalLoading();
                 const tempCard = document.querySelector(`[data-task-id="${tempId}"]`);
                 if (tempCard) tempCard.remove();
+                if (state.tasks.length === 0 && emptyState) {
+                    emptyState.classList.remove('hidden');
+                }
                 showToast(`Failed to create task: ${err.message}`, 'danger');
             }
         });
