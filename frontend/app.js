@@ -2352,7 +2352,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     keyboardController.init();
     renderGamificationHeader();
     await triggerAutoRollover(false);
-    await loadTodayTasks();
-    await loadChallenges();
-    await loadShameBoard();
+    await Promise.all([
+        loadTodayTasks(),
+        loadChallenges(),
+        loadShameBoard()
+    ]);
 });

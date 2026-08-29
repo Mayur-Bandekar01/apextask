@@ -19,7 +19,8 @@ def get_db_connection():
                 database=Config.DB_NAME,
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor,
-                autocommit=True
+                autocommit=True,
+                connect_timeout=2
             )
             return conn
         except Exception:

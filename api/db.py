@@ -92,6 +92,13 @@ class SQLiteConnectionWrapper:
 def get_db_connection():
     global DB_ENGINE
 
+    # If SQLite fallback was previously established, reuse SQLite immediately
+    if DB_ENGINE == 'sqlite':
+        sqlite_conn = sqlite3.connect(str(LOCAL_SQLITE_PATH), timeout=15)
+        sqlite_conn.execute("PRAGMA journal_mode = WAL;")
+        sqlite_conn.execute("PRAGMA foreign_keys = ON;")
+        return SQLiteConnectionWrapper(sqlite_conn)
+
     # Try MySQL first (Cloud or Local)
     try:
         connect_args = {
@@ -102,7 +109,7 @@ def get_db_connection():
             'database': Config.DB_NAME,
             'cursorclass': DictCursor,
             'autocommit': True,
-            'connect_timeout': 5,
+            'connect_timeout': 2,
             'charset': 'utf8mb4'
         }
 
@@ -116,10 +123,9 @@ def get_db_connection():
         DB_ENGINE = 'mysql'
         return conn
     except Exception as e:
-        # Fallback to local SQLite persistence
+        # Fallback to local SQLite persistence & cache engine choice
         DB_ENGINE = 'sqlite'
         sqlite_conn = sqlite3.connect(str(LOCAL_SQLITE_PATH), timeout=15)
-        # Enable WAL mode for high concurrency
         sqlite_conn.execute("PRAGMA journal_mode = WAL;")
         sqlite_conn.execute("PRAGMA foreign_keys = ON;")
         return SQLiteConnectionWrapper(sqlite_conn)
