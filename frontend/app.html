@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
     <!-- Custom Modular Stylesheet -->
-    <link rel="stylesheet" href="style.css?v=2026.2">
+    <link rel="stylesheet" href="style.css?v=2026.3">
 </head>
 <body>
     <!-- Top Ambient Operation Loading Bar -->
@@ -504,62 +504,94 @@
 
     <!-- Add / Edit Task Drawer / Slide-in Panel -->
     <div class="modal-backdrop hidden" id="task-modal-backdrop">
-        <div class="slide-panel glass-card" id="task-modal-panel">
+        <div class="slide-panel" id="task-modal-panel">
             <div class="panel-header">
-                <h3 id="task-modal-title"><span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span> Create New Mission</h3>
-                <button class="btn-close-modal" id="btn-close-task-modal"><i class="fa-solid fa-xmark"></i></button>
+                <div class="panel-title-row">
+                    <span class="modal-title-badge"><i class="fa-solid fa-plus"></i></span>
+                    <h3 id="task-modal-title">Create New Mission</h3>
+                </div>
+                <button class="btn-close-modal" id="btn-close-task-modal" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
             <form id="task-form" class="task-form">
                 <input type="hidden" id="task-form-id" value="">
 
+                <!-- Task Title -->
                 <div class="form-group">
-                    <label for="task-form-title">Task Title <span class="required">*</span></label>
+                    <label class="form-label" for="task-form-title">
+                        Task Title <span class="required">*</span>
+                    </label>
                     <input type="text" id="task-form-title" class="form-control" placeholder="e.g., Deploy MySQL schema to production" required>
                 </div>
 
+                <!-- Priority Tier — redesigned cards -->
                 <div class="form-group">
-                    <label>Priority Tier</label>
-                    <div class="priority-selector-pills">
-                        <label class="priority-radio-label priority-low">
+                    <label class="form-label">Priority Tier</label>
+                    <div class="priority-card-grid">
+                        <label class="priority-card priority-card-low">
                             <input type="radio" name="task_priority" value="low">
-                            <span class="pill-content"><i class="fa-solid fa-leaf"></i> Low (+10 XP)</span>
+                            <div class="priority-card-inner">
+                                <i class="fa-solid fa-leaf priority-card-icon"></i>
+                                <span class="priority-card-name">Low</span>
+                                <span class="priority-card-xp">+10 XP</span>
+                            </div>
+                            <div class="priority-card-check"><i class="fa-solid fa-check"></i></div>
                         </label>
-                        <label class="priority-radio-label priority-medium">
+                        <label class="priority-card priority-card-medium">
                             <input type="radio" name="task_priority" value="medium" checked>
-                            <span class="pill-content"><i class="fa-solid fa-shield"></i> Medium (+25 XP)</span>
+                            <div class="priority-card-inner">
+                                <i class="fa-solid fa-shield-halved priority-card-icon"></i>
+                                <span class="priority-card-name">Medium</span>
+                                <span class="priority-card-xp">+25 XP</span>
+                            </div>
+                            <div class="priority-card-check"><i class="fa-solid fa-check"></i></div>
                         </label>
-                        <label class="priority-radio-label priority-high">
+                        <label class="priority-card priority-card-high">
                             <input type="radio" name="task_priority" value="high">
-                            <span class="pill-content"><i class="fa-solid fa-fire"></i> High (+50 XP)</span>
+                            <div class="priority-card-inner">
+                                <i class="fa-solid fa-fire priority-card-icon"></i>
+                                <span class="priority-card-name">High</span>
+                                <span class="priority-card-xp">+50 XP</span>
+                            </div>
+                            <div class="priority-card-check"><i class="fa-solid fa-check"></i></div>
                         </label>
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group flex-1">
-                        <label for="task-form-date">Execution Date</label>
-                        <input type="date" id="task-form-date" class="form-control">
-                    </div>
-                    <div class="form-group flex-1">
-                        <label for="task-form-deadline">Strict Deadline (Optional)</label>
-                        <input type="datetime-local" id="task-form-deadline" class="form-control">
-                    </div>
-                </div>
-
+                <!-- Execution Date (full width, no deadline) -->
                 <div class="form-group">
-                    <label for="task-form-tags">Categorization Tags</label>
-                    <input type="text" id="task-form-tags" class="form-control" placeholder="e.g., #engineering, #urgent, #deepwork">
+                    <label class="form-label" for="task-form-date">Execution Date</label>
+                    <input type="date" id="task-form-date" class="form-control">
                 </div>
+                <!-- Keep deadline hidden in DOM so JS that references it doesn't break -->
+                <input type="hidden" id="task-form-deadline" value="">
 
+                <!-- Tags -->
                 <div class="form-group">
-                    <label for="task-form-notes">Mission Notes & Sub-details</label>
-                    <textarea id="task-form-notes" class="form-control" rows="3" placeholder="Context, checklists, or reference links..."></textarea>
+                    <label class="form-label" for="task-form-tags">
+                        <i class="fa-solid fa-tag" style="opacity:.55;font-size:10px;margin-right:3px;"></i>
+                        Categorization Tags
+                    </label>
+                    <input type="text" id="task-form-tags" class="form-control" placeholder="#engineering  #urgent  #deepwork">
                 </div>
 
+                <!-- Notes -->
+                <div class="form-group">
+                    <label class="form-label" for="task-form-notes">
+                        <i class="fa-solid fa-align-left" style="opacity:.55;font-size:10px;margin-right:3px;"></i>
+                        Mission Notes
+                    </label>
+                    <textarea id="task-form-notes" class="form-control form-textarea" rows="3" placeholder="Context, links, or sub-details…"></textarea>
+                </div>
+
+                <!-- Subtasks -->
                 <div class="form-group subtask-section">
                     <div class="subtask-header-row">
-                        <label><i class="fa-solid fa-list-check"></i> Subtasks</label>
+                        <label class="form-label" style="margin:0">
+                            <i class="fa-solid fa-list-check" style="opacity:.7;margin-right:5px;"></i>Subtasks
+                        </label>
                         <button type="button" class="btn-add-subtask" id="btn-add-subtask">
                             <i class="fa-solid fa-plus"></i> Add Subtask
                         </button>
@@ -567,9 +599,12 @@
                     <div id="subtask-list" class="subtask-list"></div>
                 </div>
 
+                <!-- Footer actions -->
                 <div class="panel-footer">
-                    <button type="button" class="btn btn-glass" id="btn-cancel-task-form">Cancel</button>
-                    <button type="submit" class="btn btn-primary glow-button" id="btn-submit-task-form">
+                    <button type="button" class="btn btn-ghost-cancel" id="btn-cancel-task-form">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn btn-save-mission" id="btn-submit-task-form">
                         <i class="fa-solid fa-floppy-disk"></i>
                         <span id="task-form-submit-text">Save Task</span>
                     </button>
@@ -755,6 +790,6 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2026.2"></script>
+    <script src="app.js?v=2026.3"></script>
 </body>
 </html>
