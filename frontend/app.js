@@ -647,7 +647,6 @@ function createTaskCardHTML(t) {
     const isComplete = t.status === 'complete';
     const isRolled = (t.rollover_count || 0) > 0;
     const daysPending = t.days_pending || 0;
-    const isBoss = Boolean(t.is_boss);
 
     // Determine pending glow level
     let glowClass = '';
@@ -682,9 +681,21 @@ function createTaskCardHTML(t) {
         }
     }
 
-    // Subtasks Checklist
+    // Subtask progress bar + list
+    let subtaskProgressHTML = '';
     let subtasksHTML = '';
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
+        const total = t.subtasks.length;
+        const done  = t.subtasks.filter(st => st.is_done || st.completed).length;
+        const pct   = Math.round((done / total) * 100);
+        subtaskProgressHTML = `
+            <div class="subtask-progress-bar-wrap" title="${done}/${total} subtasks done">
+                <div class="subtask-progress-track">
+                    <div class="subtask-progress-fill" style="width:${pct}%"></div>
+                </div>
+                <span class="subtask-progress-label">${done}/${total}</span>
+            </div>
+        `;
         subtasksHTML = `
             <div class="task-card-subtasks">
                 ${t.subtasks.map((st, idx) => {
@@ -701,9 +712,11 @@ function createTaskCardHTML(t) {
     }
 
     return `
-        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${glowClass}" data-task-id="${t.id}">
+        <div class="task-card ${isComplete ? 'is-complete' : ''} ${isRolled ? 'is-rolled-over' : ''} ${glowClass} priority-border-${t.priority || 'medium'}" data-task-id="${t.id}">
+            <div class="task-priority-accent priority-accent-${t.priority || 'medium'}"></div>
+
             <div class="task-card-header">
-                <button class="task-check-btn" title="${isComplete ? 'Mark Incomplete' : 'Mark Complete'}" data-action="toggle-complete">
+                <button class="task-check-btn ${isComplete ? 'is-checked' : ''}" title="${isComplete ? 'Mark Incomplete' : 'Mark Complete'}" data-action="toggle-complete">
                     <i class="fa-solid fa-check"></i>
                 </button>
 
@@ -711,21 +724,22 @@ function createTaskCardHTML(t) {
                     <div class="task-title">${escapeHTML(t.title)}</div>
                     ${t.notes ? `<div class="task-notes">${escapeHTML(t.notes)}</div>` : ''}
 
+                    ${subtaskProgressHTML}
                     ${subtasksHTML}
 
                     <div class="task-tags-row">
                         <span class="priority-tag priority-${t.priority || 'medium'}">${t.priority || 'medium'}</span>
                         ${tagsHTML}
-                        
+
                         ${isRolled ? `
                             <span class="rollover-tag" title="Auto-rolled over from previous day">
-                                <i class="fa-solid fa-arrows-rotate"></i> Rolled Over (${t.rollover_count})
+                                <i class="fa-solid fa-arrows-rotate"></i> Rolled (${t.rollover_count})
                             </span>
                         ` : ''}
 
                         ${(!isComplete && daysPending > 0) ? `
                             <span class="pending-chain-tag" title="Original Date: ${t.original_date}">
-                                <i class="fa-solid fa-hourglass-half"></i> Pending for ${daysPending} ${daysPending === 1 ? 'day' : 'days'}
+                                <i class="fa-solid fa-hourglass-half"></i> ${daysPending}d pending
                             </span>
                         ` : ''}
                     </div>
@@ -763,6 +777,13 @@ async function handleToggleComplete(taskId) {
         const res = await api(`/tasks/${taskId}/complete`, { method: 'PUT' });
         if (res.success && res.result) {
             const r = res.result;
+
+            // Pop animation on the check button
+            const card = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (card) {
+                const btn = card.querySelector('.task-check-btn');
+                if (btn) { btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
+            }
 
             if (r.status === 'complete') {
                 audio.play('complete');

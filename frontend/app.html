@@ -21,7 +21,7 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
     <!-- Custom Modular Stylesheet -->
-    <link rel="stylesheet" href="style.css?v=2026.3">
+    <link rel="stylesheet" href="style.css?v=2026.4">
 </head>
 <body>
     <!-- Top Ambient Operation Loading Bar -->
@@ -260,13 +260,27 @@
                 </div>
 
                 <!-- Empty State for Today -->
-                <div class="empty-state-card glass-card hidden" id="today-empty-state">
-                    <div class="empty-icon"><i class="fa-solid fa-sparkles"></i></div>
-                    <h3>Your Slate is Clean!</h3>
-                    <p>No tasks found matching your filter criteria. Ready to forge new achievements?</p>
-                    <button class="btn btn-primary mt-3" id="btn-empty-add-task">
-                        <i class="fa-solid fa-plus"></i> Create First Mission
+                <div class="empty-state-hero hidden" id="today-empty-state">
+                    <div class="empty-state-orb">
+                        <div class="empty-orb-ring ring-1"></div>
+                        <div class="empty-orb-ring ring-2"></div>
+                        <div class="empty-orb-ring ring-3"></div>
+                        <div class="empty-orb-icon">
+                            <i class="fa-solid fa-bolt-lightning"></i>
+                        </div>
+                    </div>
+                    <div class="empty-state-text">
+                        <h3 class="empty-state-title">Slate is Clear, Commander</h3>
+                        <p class="empty-state-sub">No missions assigned for today. Every legend starts with the first move — forge yours now.</p>
+                    </div>
+                    <button class="btn-empty-cta" id="btn-empty-add-task">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Create First Mission</span>
+                        <div class="btn-empty-shimmer"></div>
                     </button>
+                    <div class="empty-state-tips">
+                        <span><i class="fa-solid fa-keyboard"></i> Press <kbd>N</kbd> to quick-create</span>
+                    </div>
                 </div>
             </section>
 
@@ -630,16 +644,32 @@
 
     <!-- Level Up Fanfare Celebration Modal -->
     <div class="modal-backdrop hidden" id="levelup-modal-backdrop">
-        <div class="modal-card glass-card levelup-modal-card">
+        <div class="levelup-modal-card">
+            <!-- Rays background -->
+            <div class="levelup-rays" id="levelup-rays"></div>
+
             <div class="levelup-stage">
-                <div class="levelup-badge-halo" id="levelup-badge-halo">
-                    <span class="levelup-lvl-number" id="levelup-modal-level">2</span>
+                <!-- Halo badge -->
+                <div class="levelup-badge-outer">
+                    <div class="levelup-badge-ring ring-a"></div>
+                    <div class="levelup-badge-ring ring-b"></div>
+                    <div class="levelup-badge-halo" id="levelup-badge-halo">
+                        <span class="levelup-lvl-label">LVL</span>
+                        <span class="levelup-lvl-number" id="levelup-modal-level">2</span>
+                    </div>
                 </div>
-                <h2 class="levelup-title">LEVEL UP!</h2>
-                <h4 class="levelup-subtitle" id="levelup-modal-title">Productivity Architect</h4>
-                <p class="levelup-desc">Your relentless discipline has forged you to a higher echelon. Your XP capacity expands!</p>
-                <button class="btn btn-primary glow-button mt-4" id="btn-close-levelup">
-                    <i class="fa-solid fa-fire"></i> Claim Prestige & Continue
+
+                <div class="levelup-text-block">
+                    <div class="levelup-eyebrow">⚡ RANK ASCENSION</div>
+                    <h2 class="levelup-title">LEVEL UP!</h2>
+                    <h4 class="levelup-subtitle" id="levelup-modal-title">Productivity Architect</h4>
+                </div>
+
+                <p class="levelup-desc">Your discipline has forged you to a higher echelon. XP capacity expands — new challenges await.</p>
+
+                <button class="btn-claim-prestige" id="btn-close-levelup">
+                    <i class="fa-solid fa-crown"></i>
+                    Claim Prestige & Continue
                 </button>
             </div>
         </div>
@@ -790,6 +820,6 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2026.3"></script>
+    <script src="app.js?v=2026.4"></script>
 </body>
 </html>
