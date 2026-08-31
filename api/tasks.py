@@ -13,7 +13,8 @@ tasks_bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 @require_auth
 def get_today_tasks():
     user_id = getattr(g, 'user_id', 1)
-    tasks = TaskModel.get_tasks_for_today(user_id)
+    client_date = request.args.get('date')
+    tasks = TaskModel.get_tasks_for_today(user_id, client_date)
     return jsonify({"success": True, "tasks": tasks, "count": len(tasks)})
 
 @tasks_bp.route('/<date_str>', methods=['GET'])
@@ -71,7 +72,9 @@ def edit_task(task_id):
     notes = data.get('notes', '')
     priority = data.get('priority', 'medium').lower()
     deadline = data.get('deadline')
+    original_date = data.get('original_date')
     tags = data.get('tags')
+    subtasks = data.get('subtasks')
 
     task = TaskModel.update_task(
         task_id=task_id,
@@ -80,7 +83,9 @@ def edit_task(task_id):
         notes=notes,
         priority=priority,
         deadline=deadline,
-        tags=tags
+        original_date=original_date,
+        tags=tags,
+        subtasks=subtasks
     )
     if not task:
         return jsonify({"success": False, "error": "Task not found"}), 404
@@ -161,3 +166,10 @@ def get_missed_tasks():
     user_id = getattr(g, 'user_id', 1)
     missed_tasks = TaskModel.get_missed_tasks(user_id)
     return jsonify({"success": True, "tasks": missed_tasks, "count": len(missed_tasks)})
+
+@tasks_bp.route('/shame-summary', methods=['GET'])
+@require_auth
+def get_shame_summary():
+    user_id = getattr(g, 'user_id', 1)
+    summary = TaskModel.get_shame_summary(user_id)
+    return jsonify({"success": True, **summary})

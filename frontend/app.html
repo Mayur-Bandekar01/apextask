@@ -789,6 +789,71 @@
         </div>
     </div>
 
+    <!-- ☠️ Shame Board Login Modal — Missed Tasks Accountability Popup -->
+    <div class="modal-backdrop hidden" id="shame-login-modal-backdrop">
+        <div class="shame-modal-card glass-card">
+            <!-- Shame Modal Header -->
+            <div class="shame-modal-header">
+                <div class="shame-skull-icon" id="shame-skull-icon">
+                    <i class="fa-solid fa-skull-crossbones"></i>
+                </div>
+                <div class="shame-header-text">
+                    <div class="shame-eyebrow">ACCOUNTABILITY REPORT</div>
+                    <h2 class="shame-modal-title">Yesterday's Shame Board</h2>
+                    <p class="shame-date-label" id="shame-yesterday-date">—</p>
+                </div>
+            </div>
+
+            <!-- Stats Row: Completed vs Missed -->
+            <div class="shame-stats-row">
+                <div class="shame-stat shame-stat-completed">
+                    <div class="shame-stat-number" id="shame-completed-count">0</div>
+                    <div class="shame-stat-label"><i class="fa-solid fa-circle-check"></i> Completed</div>
+                </div>
+                <div class="shame-stat-divider">vs</div>
+                <div class="shame-stat shame-stat-missed">
+                    <div class="shame-stat-number" id="shame-missed-count">0</div>
+                    <div class="shame-stat-label"><i class="fa-solid fa-skull"></i> Missed</div>
+                </div>
+            </div>
+
+            <!-- Completion Rate Bar -->
+            <div class="shame-bar-wrapper">
+                <div class="shame-bar-track">
+                    <div class="shame-bar-fill" id="shame-bar-fill" style="width: 0%;"></div>
+                </div>
+                <div class="shame-bar-labels">
+                    <span class="shame-bar-pct" id="shame-completion-pct">0%</span>
+                    <span class="shame-bar-text">Completion Rate</span>
+                </div>
+            </div>
+
+            <!-- Shame Message -->
+            <div class="shame-message-box" id="shame-message-box">
+                <p id="shame-message-text">Calculating your discipline score...</p>
+            </div>
+
+            <!-- Missed Tasks List -->
+            <div class="shame-tasks-section" id="shame-tasks-section">
+                <div class="shame-tasks-header">
+                    <i class="fa-solid fa-ghost"></i>
+                    <span>Abandoned Missions</span>
+                </div>
+                <div class="shame-tasks-scroll" id="shame-missed-tasks-list">
+                    <!-- Dynamic pills injected here -->
+                </div>
+            </div>
+
+            <!-- Footer actions -->
+            <div class="shame-modal-footer">
+                <button class="btn-shame-dismiss" id="btn-shame-dismiss">
+                    <i class="fa-solid fa-skull"></i>
+                    Face My Shame &amp; Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete Confirmation Modal -->
     <div class="modal-backdrop hidden" id="delete-modal-backdrop">
         <div class="modal-card glass-card" style="max-width: 400px; text-align: center;">

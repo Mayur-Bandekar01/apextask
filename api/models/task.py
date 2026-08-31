@@ -34,8 +34,8 @@ class TaskModel:
         return TaskModel._format_task(task)
 
     @staticmethod
-    def get_tasks_for_today(user_id=1):
-        today = datetime.date.today().isoformat()
+    def get_tasks_for_today(user_id=1, date_str=None):
+        today = date_str if date_str else datetime.date.today().isoformat()
         return TaskModel.get_tasks_by_date(user_id, today)
 
     @staticmethod
@@ -106,7 +106,7 @@ class TaskModel:
         return TaskModel.get_task_by_id(task_id, user_id)
 
     @staticmethod
-    def update_task(task_id, user_id, title, notes="", priority="medium", deadline=None, tags=None):
+    def update_task(task_id, user_id, title, notes="", priority="medium", deadline=None, original_date=None, tags=None, subtasks=None):
         old_task = TaskModel.get_task_by_id(task_id, user_id)
         if not old_task:
             return None
@@ -120,21 +120,45 @@ class TaskModel:
             changes.append(f"Priority changed from {old_task.get('priority')} to {priority.lower()}")
         if old_task.get("deadline") != deadline:
             changes.append(f"Deadline updated to {deadline or 'None'}")
+        if original_date and old_task.get("original_date") != original_date:
+            changes.append(f"Execution date updated to {original_date}")
         if tags is not None and old_task.get("tags") != tags:
             changes.append(f"Tags updated to '{tags}'")
+        if subtasks is not None:
+            changes.append("Subtasks updated")
 
         if not changes:
             changes.append("Task details refreshed")
 
         change_log_str = "; ".join(changes)
 
+        # Format subtasks
+        if subtasks is not None:
+            if isinstance(subtasks, list):
+                subtasks_str = json.dumps(subtasks)
+            elif isinstance(subtasks, str):
+                subtasks_str = subtasks
+            else:
+                subtasks_str = json.dumps([])
+        else:
+            subtasks_str = None
+
+        new_original_date = original_date if original_date else old_task.get("original_date")
+
         conn = get_db_connection()
         with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE tasks 
-                SET title = %s, notes = %s, priority = %s, deadline = %s, tags = COALESCE(%s, tags)
-                WHERE id = %s AND user_id = %s;
-            """, (title, notes or '', priority.lower(), deadline or None, tags, task_id, user_id))
+            if subtasks_str is not None:
+                cur.execute("""
+                    UPDATE tasks 
+                    SET title = %s, notes = %s, priority = %s, deadline = %s, original_date = %s, tags = COALESCE(%s, tags), subtasks = %s
+                    WHERE id = %s AND user_id = %s;
+                """, (title, notes or '', priority.lower(), deadline or None, new_original_date, tags, subtasks_str, task_id, user_id))
+            else:
+                cur.execute("""
+                    UPDATE tasks 
+                    SET title = %s, notes = %s, priority = %s, deadline = %s, original_date = %s, tags = COALESCE(%s, tags)
+                    WHERE id = %s AND user_id = %s;
+                """, (title, notes or '', priority.lower(), deadline or None, new_original_date, tags, task_id, user_id))
 
             cur.execute("""
                 INSERT INTO task_logs (task_id, change_description)
@@ -389,6 +413,103 @@ class TaskModel:
             "rolled_count": len(rolled_task_ids),
             "rolled_task_ids": rolled_task_ids,
             "target_date": today
+        }
+
+    @staticmethod
+    def get_shame_summary(user_id=1):
+        """Returns a summary of missed tasks for the shame board login popup and history tab."""
+        today = datetime.date.today()
+        yesterday = today - datetime.timedelta(days=1)
+        today_str = today.isoformat()
+        yesterday_str = yesterday.isoformat()
+
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # 1. Tasks that were pending yesterday (not rolled over yet — these are truly missed)
+            cur.execute("""
+                SELECT id, title, priority, rollover_count
+                FROM tasks
+                WHERE user_id = %s
+                  AND status = 'pending'
+                  AND original_date < %s
+                ORDER BY original_date ASC, priority DESC;
+            """, (user_id, today_str))
+            missed_tasks_raw = cur.fetchall()
+
+            # 2. Yesterday's daily record (completed count)
+            cur.execute("""
+                SELECT tasks_completed, tasks_missed, xp_earned
+                FROM daily_records
+                WHERE user_id = %s AND record_date = %s;
+            """, (user_id, yesterday_str))
+            yesterday_record = cur.fetchone()
+
+            # 3. Historical shame log: only days with actual missed tasks
+            cur.execute("""
+                SELECT record_date, tasks_completed, tasks_missed, xp_earned
+                FROM daily_records
+                WHERE user_id = %s
+                  AND tasks_missed > 0
+                ORDER BY record_date DESC
+                LIMIT 30;
+            """, (user_id,))
+            shame_history_raw = cur.fetchall()
+
+        conn.close()
+
+        yesterday_completed = (yesterday_record.get('tasks_completed', 0) if yesterday_record else 0)
+        yesterday_missed = len(missed_tasks_raw)
+        total_yesterday = yesterday_completed + yesterday_missed
+        completion_rate = int((yesterday_completed / total_yesterday * 100)) if total_yesterday > 0 else 100
+
+        missed_titles = []
+        for t in missed_tasks_raw:
+            title = t.get('title', 'Untitled Task')
+            priority = t.get('priority', 'medium')
+            rollover = t.get('rollover_count', 0)
+            missed_titles.append({
+                'title': title,
+                'priority': priority,
+                'rollover_count': rollover
+            })
+
+        shame_history = []
+        for rec in shame_history_raw:
+            rd = rec.get('record_date')
+            rd_str = rd.isoformat() if isinstance(rd, (datetime.date, datetime.datetime)) else str(rd) if rd else None
+            shame_history.append({
+                'date': rd_str,
+                'tasks_completed': rec.get('tasks_completed', 0),
+                'tasks_missed': rec.get('tasks_missed', 0),
+                'xp_earned': rec.get('xp_earned', 0)
+            })
+
+        # Determine shame level message
+        if completion_rate == 100 and yesterday_missed == 0:
+            shame_level = 'clean'
+            shame_message = '🏆 Zero Shame! You crushed it yesterday.'
+        elif completion_rate >= 75:
+            shame_level = 'mild'
+            shame_message = '😬 Almost there. A few missions slipped through.'
+        elif completion_rate >= 40:
+            shame_level = 'moderate'
+            shame_message = '⚠️ Rough day. Half your missions were abandoned.'
+        else:
+            shame_level = 'severe'
+            shame_message = '☠️ Total meltdown. Your discipline needs a serious reboot.'
+
+        has_shame = yesterday_missed > 0
+
+        return {
+            'has_shame': has_shame,
+            'yesterday_date': yesterday_str,
+            'yesterday_completed': yesterday_completed,
+            'yesterday_missed': yesterday_missed,
+            'completion_rate': completion_rate,
+            'shame_level': shame_level,
+            'shame_message': shame_message,
+            'missed_tasks': missed_titles,
+            'shame_history': shame_history
         }
 
     @staticmethod

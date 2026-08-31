@@ -529,7 +529,8 @@ function renderGamificationHeader() {
 async function loadTodayTasks() {
     renderSkeletonCards('today-task-list', 4);
     try {
-        const data = await api('/tasks/today');
+        const localDate = getLocalDateString();
+        const data = await api(`/tasks/today?date=${localDate}`);
         if (data.success) {
             state.tasks = data.tasks || [];
             renderTodayTasks();
@@ -686,7 +687,12 @@ function createTaskCardHTML(t) {
     let subtasksHTML = '';
     if (Array.isArray(t.subtasks) && t.subtasks.length > 0) {
         const total = t.subtasks.length;
-        const done  = t.subtasks.filter(st => st.is_done || st.completed).length;
+        const done  = t.subtasks.filter(st => {
+            if (typeof st === 'object' && st !== null) {
+                return Boolean(st.is_done || st.completed);
+            }
+            return false;
+        }).length;
         const pct   = Math.round((done / total) * 100);
         subtaskProgressHTML = `
             <div class="subtask-progress-bar-wrap" title="${done}/${total} subtasks done">
@@ -699,12 +705,13 @@ function createTaskCardHTML(t) {
         subtasksHTML = `
             <div class="task-card-subtasks">
                 ${t.subtasks.map((st, idx) => {
-                    const isDone = Boolean(st.is_done || st.completed);
+                    const stTitle = typeof st === 'string' ? st : (st && st.title ? st.title : '');
+                    const isDone = typeof st === 'object' && st !== null ? Boolean(st.is_done || st.completed) : false;
                     return `
-                        <label class="card-subtask-item ${isDone ? 'is-done' : ''}" onclick="event.stopPropagation(); handleSubtaskToggle(${t.id}, ${idx})">
-                            <input type="checkbox" class="card-subtask-check" ${isDone ? 'checked' : ''} onclick="event.stopPropagation()">
-                            <span>${escapeHTML(st.title)}</span>
-                        </label>
+                        <div role="button" tabindex="0" class="card-subtask-item ${isDone ? 'is-done' : ''}" onclick="event.stopPropagation(); handleSubtaskToggle('${t.id}', ${idx})">
+                            <input type="checkbox" class="card-subtask-check" ${isDone ? 'checked' : ''} style="pointer-events:none;">
+                            <span>${escapeHTML(stTitle)}</span>
+                        </div>
                     `;
                 }).join('')}
             </div>
@@ -985,7 +992,7 @@ let bossListenerAttached = false;
 
 function createSubtaskRow(title = '', isDone = false) {
     const list = document.getElementById('subtask-list');
-    if (!list) return;
+    if (!list) return null;
 
     const row = document.createElement('div');
     row.className = 'subtask-row';
@@ -997,6 +1004,21 @@ function createSubtaskRow(title = '', isDone = false) {
         </button>
     `;
 
+    const titleInput = row.querySelector('.subtask-row-title');
+    if (titleInput) {
+        titleInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                const newRow = createSubtaskRow('', false);
+                if (newRow) {
+                    const nextInput = newRow.querySelector('.subtask-row-title');
+                    if (nextInput) nextInput.focus();
+                }
+            }
+        });
+    }
+
     const removeBtn = row.querySelector('.btn-remove-subtask');
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
@@ -1005,9 +1027,11 @@ function createSubtaskRow(title = '', isDone = false) {
     }
 
     list.appendChild(row);
+    return row;
 }
 
 async function handleSubtaskToggle(taskId, subtaskIndex) {
+    if (!taskId || String(taskId).startsWith('temp_')) return;
     try {
         startTopLoadingBar();
         const res = await api(`/tasks/${taskId}/subtasks/${subtaskIndex}/toggle`, {
@@ -1018,6 +1042,7 @@ async function handleSubtaskToggle(taskId, subtaskIndex) {
             await loadTodayTasks();
             if (state.currentTab === 'weekly') loadWeeklyDashboard();
             if (state.currentTab === 'monthly') loadMonthlyDashboard();
+            if (state.dateTasksModalData) openDateDrilldownModal(state.dateTasksModalData);
         }
     } catch (err) {
         showToast(err.message, 'danger');
@@ -1085,7 +1110,9 @@ function openAddTaskModal() {
 }
 
 function openEditTaskModal(taskId) {
-    const task = state.tasks.find(t => t.id === taskId) || state.missedTasks.find(t => t.id === taskId);
+    const task = state.tasks.find(t => t.id === taskId) || 
+                 state.missedTasks.find(t => t.id === taskId) ||
+                 (state.dateTasksModalDataTasks && state.dateTasksModalDataTasks.find(t => t.id === taskId));
     if (!task) return;
 
     const backdrop = document.getElementById('task-modal-backdrop');
@@ -1095,7 +1122,7 @@ function openEditTaskModal(taskId) {
     const idInput = document.getElementById('task-form-id');
     if (idInput) idInput.value = task.id;
     const titleInput = document.getElementById('task-form-title');
-    if (titleInput) titleInput.value = task.title;
+    if (titleInput) titleInput.value = task.title || '';
     const notesInput = document.getElementById('task-form-notes');
     if (notesInput) notesInput.value = task.notes || '';
 
@@ -1106,7 +1133,11 @@ function openEditTaskModal(taskId) {
     if (subtaskList) {
         subtaskList.innerHTML = '';
         if (Array.isArray(task.subtasks) && task.subtasks.length > 0) {
-            task.subtasks.forEach(st => createSubtaskRow(st.title, st.is_done));
+            task.subtasks.forEach(st => {
+                const stTitle = typeof st === 'string' ? st : (st && st.title ? st.title : '');
+                const stDone = typeof st === 'object' && st !== null ? Boolean(st.is_done || st.completed) : false;
+                createSubtaskRow(stTitle, stDone);
+            });
         }
     }
 
@@ -1115,7 +1146,7 @@ function openEditTaskModal(taskId) {
     if (radio) radio.checked = true;
 
     const dateInput = document.getElementById('task-form-date');
-    if (dateInput) dateInput.value = task.original_date || '';
+    if (dateInput) dateInput.value = task.original_date || getLocalDateString();
 
     const deadlineInput = document.getElementById('task-form-deadline');
     if (deadlineInput) {
@@ -1250,6 +1281,13 @@ async function handleTaskFormSubmit(e) {
                     await loadTodayTasks();
                     await loadUserProfile();
                     updateTabBadges();
+                    if (state.currentTab === 'weekly') loadWeeklyDashboard();
+                    if (state.currentTab === 'monthly') loadMonthlyDashboard();
+                    if (state.currentTab === 'yearly') loadYearlyDashboard();
+                    if (state.currentTab === 'shame') loadShameBoard();
+                    if (state.dateTasksModalData) {
+                        openDateDrilldownModal(state.dateTasksModalData);
+                    }
                 }
             } catch (err) {
                 hideGlobalLoading();
@@ -1275,6 +1313,15 @@ async function handleTaskFormSubmit(e) {
                     audio.play('click');
                     showToast('Task updated successfully!', 'success');
                     await loadTodayTasks();
+                    await loadUserProfile();
+                    updateTabBadges();
+                    if (state.currentTab === 'weekly') loadWeeklyDashboard();
+                    if (state.currentTab === 'monthly') loadMonthlyDashboard();
+                    if (state.currentTab === 'yearly') loadYearlyDashboard();
+                    if (state.currentTab === 'shame') loadShameBoard();
+                    if (state.dateTasksModalData) {
+                        openDateDrilldownModal(state.dateTasksModalData);
+                    }
                 }
             } catch (err) {
                 hideGlobalLoading();
@@ -1463,6 +1510,7 @@ function renderMonthlyDashboard(rec) {
 
 // ==================== DATE DRILLDOWN MODAL ====================
 async function openDateDrilldownModal(dateStr) {
+    state.dateTasksModalData = dateStr;
     const backdrop = document.getElementById('date-tasks-modal-backdrop');
     const titleEl = document.getElementById('date-tasks-modal-title');
     const listEl = document.getElementById('date-tasks-modal-list');
@@ -1476,6 +1524,7 @@ async function openDateDrilldownModal(dateStr) {
     try {
         const data = await api(`/tasks/${dateStr}`);
         if (data.success && data.tasks) {
+            state.dateTasksModalDataTasks = data.tasks;
             if (data.tasks.length === 0) {
                 listEl.innerHTML = '<div class="empty-state-card"><p>No tasks recorded on this date.</p></div>';
                 return;
@@ -1489,6 +1538,8 @@ async function openDateDrilldownModal(dateStr) {
 }
 
 function closeDateModal() {
+    state.dateTasksModalData = null;
+    state.dateTasksModalDataTasks = null;
     const backdrop = document.getElementById('date-tasks-modal-backdrop');
     if (backdrop) backdrop.classList.add('hidden');
 }
@@ -1610,73 +1661,6 @@ function renderYearlyTrajectoryChart(trend) {
             }
         }
     });
-}
-
-// ==================== SECTION 4: SHAME BOARD ====================
-async function loadShameBoard() {
-    try {
-        const data = await api('/tasks/missed');
-        if (data.success && data.tasks) {
-            state.missedTasks = data.tasks;
-            renderShameBoard();
-        }
-    } catch (e) {
-        console.error('Failed to load shame board:', e);
-    }
-}
-
-function renderShameBoard() {
-    const list = document.getElementById('shame-task-list');
-    const emptyState = document.getElementById('shame-empty-state');
-    const shameBadge = document.getElementById('badge-missed-count');
-
-    if (!list) return;
-
-    if (shameBadge) {
-        shameBadge.textContent = state.missedTasks.length;
-        if (state.missedTasks.length > 0) {
-            shameBadge.classList.remove('hidden');
-        } else {
-            shameBadge.classList.add('hidden');
-        }
-    }
-
-    if (state.missedTasks.length === 0) {
-        list.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        return;
-    }
-
-    if (emptyState) emptyState.classList.add('hidden');
-
-    list.innerHTML = state.missedTasks.map(t => {
-        return `
-            <div class="shame-card" data-task-id="${t.id}">
-                <div class="shame-alert-badge">
-                    <i class="fa-solid fa-triangle-exclamation"></i> Overdue & Penalized
-                </div>
-
-                <div class="task-title text-danger">${escapeHTML(t.title)}</div>
-                ${t.notes ? `<div class="task-notes">${escapeHTML(t.notes)}</div>` : ''}
-
-                <div class="shame-timestamp">
-                    <i class="fa-regular fa-clock"></i> Ignored since ${t.deadline_str || t.original_date} (${t.days_overdue || 1} days overdue)
-                </div>
-
-                <div class="task-card-footer">
-                    <div class="priority-tag priority-${t.priority || 'medium'}">${t.priority} Priority</div>
-                    <div class="task-actions">
-                        <button class="btn btn-sm btn-primary" data-action="toggle-complete">
-                            <i class="fa-solid fa-check"></i> Redeem Now
-                        </button>
-                        <button class="btn-action delete-btn" data-action="delete-task" title="Delete Task">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
 }
 
 // ==================== SECTION 4: ACHIEVEMENTS & BADGES ====================
@@ -1812,7 +1796,234 @@ function closeRewardChestModal() {
     if (backdrop) backdrop.classList.add('hidden');
 }
 
+
+// ==================== SECTION: SHAME BOARD ====================
+
+async function loadShameBoard() {
+    const container = document.getElementById('shame-task-list');
+    const emptyState = document.getElementById('shame-empty-state');
+
+    if (!container) return;
+
+    try {
+        // Fetch both current missed tasks and shame summary (for history)
+        const [missedRes, summaryRes] = await Promise.all([
+            api('/tasks/missed'),
+            api('/tasks/shame-summary')
+        ]);
+
+        const missedTasks = (missedRes.success && missedRes.tasks) ? missedRes.tasks : [];
+        const summary = summaryRes.success ? summaryRes : {};
+        const shameHistory = summary.shame_history || [];
+
+        // Update missed badge count in sidebar
+        const missedBadge = document.getElementById('badge-missed-count');
+        if (missedBadge) {
+            if (missedTasks.length > 0) {
+                missedBadge.textContent = missedTasks.length;
+                missedBadge.classList.remove('hidden');
+            } else {
+                missedBadge.classList.add('hidden');
+            }
+        }
+
+        let html = '';
+
+        // --- Section A: Current Overdue Tasks ---
+        if (missedTasks.length > 0) {
+            html += `
+                <div class="shame-section-header">
+                    <i class="fa-solid fa-skull-crossbones"></i>
+                    <span>Currently Overdue (${missedTasks.length})</span>
+                </div>
+                <div class="shame-cards-grid">
+            `;
+            missedTasks.forEach(task => {
+                const daysOverdue = task.days_overdue || 1;
+                const priorityIcon = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢';
+                const rolloverBadge = task.rollover_count > 0
+                    ? `<span class="shame-rollover-badge"><i class="fa-solid fa-arrows-rotate"></i> Rolled ×${task.rollover_count}</span>`
+                    : '';
+                html += `
+                    <div class="shame-task-card glass-card" data-task-id="${task.id}">
+                        <div class="shame-task-top">
+                            <div class="shame-task-info">
+                                <span class="shame-task-priority">${priorityIcon}</span>
+                                <span class="shame-task-title">${escapeHTML(task.title)}</span>
+                            </div>
+                            ${rolloverBadge}
+                        </div>
+                        <div class="shame-task-meta">
+                            <span class="shame-overdue-pill">
+                                <i class="fa-solid fa-clock-rotate-left"></i>
+                                ${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue
+                            </span>
+                            <span class="shame-original-date">
+                                <i class="fa-regular fa-calendar"></i>
+                                Was due ${task.original_date || '—'}
+                            </span>
+                        </div>
+                        ${task.notes ? `<p class="shame-task-notes">${escapeHTML(task.notes.slice(0, 80))}${task.notes.length > 80 ? '...' : ''}</p>` : ''}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+
+        // --- Section B: Historical Shame Log ---
+        if (shameHistory.length > 0) {
+            html += `
+                <div class="shame-section-header" style="margin-top: 28px;">
+                    <i class="fa-solid fa-book-skull"></i>
+                    <span>Shame History — Past Accountability Log</span>
+                </div>
+                <div class="shame-history-table glass-card">
+                    <div class="shame-history-header-row">
+                        <span>Date</span>
+                        <span>✅ Done</span>
+                        <span>☠️ Missed</span>
+                        <span>XP Earned</span>
+                        <span>Grade</span>
+                    </div>
+            `;
+            shameHistory.forEach(rec => {
+                const done = rec.tasks_completed || 0;
+                const missed = rec.tasks_missed || 0;
+                const total = done + missed;
+                const rate = total > 0 ? Math.round((done / total) * 100) : (done > 0 ? 100 : 0);
+
+                let grade, gradeClass;
+                if (done === 0 && missed === 0) { grade = '—'; gradeClass = 'grade-unknown'; }
+                else if (missed === 0 && done > 0) { grade = 'A+'; gradeClass = 'grade-a'; }
+                else if (rate >= 75) { grade = 'B'; gradeClass = 'grade-b'; }
+                else if (rate >= 40) { grade = 'C'; gradeClass = 'grade-c'; }
+                else { grade = 'F'; gradeClass = 'grade-f'; }
+
+                // Format date nicely
+                let dateLabel = rec.date || '—';
+                try {
+                    const d = new Date(rec.date + 'T00:00:00');
+                    dateLabel = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+                } catch (_) {}
+
+                html += `
+                    <div class="shame-history-row ${missed > 0 ? 'row-has-shame' : ''}">
+                        <span class="shame-hist-date">${dateLabel}</span>
+                        <span class="shame-hist-done">${done}</span>
+                        <span class="shame-hist-missed">${missed > 0 ? '☠️ ' + missed : '—'}</span>
+                        <span class="shame-hist-xp">+${rec.xp_earned || 0} XP</span>
+                        <span class="shame-grade ${gradeClass}">${grade}</span>
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        }
+
+        // Show empty state if nothing to show
+        if (missedTasks.length === 0 && shameHistory.length === 0) {
+            container.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('hidden');
+        } else {
+            if (emptyState) emptyState.classList.add('hidden');
+            container.innerHTML = html;
+        }
+
+    } catch (err) {
+        console.error('[ShameBoard] Failed to load:', err);
+        if (container) container.innerHTML = `<div class="shame-error glass-card"><i class="fa-solid fa-triangle-exclamation"></i> Failed to load Shame Board data.</div>`;
+    }
+}
+
+// ── Shame Board Login Popup ──────────────────────────────────────────────────
+
+async function checkAndShowShameBoardModal() {
+    // Show only once per session (not on every refresh mid-day)
+    if (sessionStorage.getItem('apextask_shame_shown')) return;
+
+    try {
+        const res = await api('/tasks/shame-summary');
+        if (!res.success || !res.has_shame) return;
+
+        // Populate modal fields
+        const yesterday = res.yesterday_date || '';
+        let dateLabel = yesterday;
+        try {
+            const d = new Date(yesterday + 'T00:00:00');
+            dateLabel = d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        } catch (_) {}
+
+        const el = (id) => document.getElementById(id);
+        if (el('shame-yesterday-date')) el('shame-yesterday-date').textContent = dateLabel;
+        if (el('shame-completed-count')) el('shame-completed-count').textContent = res.yesterday_completed || 0;
+        if (el('shame-missed-count')) el('shame-missed-count').textContent = res.yesterday_missed || 0;
+
+        // Animate completion bar
+        const barFill = el('shame-bar-fill');
+        const pctEl = el('shame-completion-pct');
+        const rate = res.completion_rate || 0;
+        if (barFill) {
+            barFill.style.width = '0%';
+            // Color by shame level
+            if (res.shame_level === 'severe') barFill.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
+            else if (res.shame_level === 'moderate') barFill.style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
+            else if (res.shame_level === 'mild') barFill.style.background = 'linear-gradient(90deg, #fbbf24, #10b981)';
+            else barFill.style.background = 'linear-gradient(90deg, #10b981, #059669)';
+            setTimeout(() => { barFill.style.width = `${rate}%`; }, 300);
+        }
+        if (pctEl) pctEl.textContent = `${rate}%`;
+
+        // Shame message + skull animation
+        const msgEl = el('shame-message-text');
+        if (msgEl) msgEl.textContent = res.shame_message || '';
+
+        const skullEl = el('shame-skull-icon');
+        if (skullEl) {
+            if (res.shame_level === 'severe') skullEl.style.color = '#ef4444';
+            else if (res.shame_level === 'moderate') skullEl.style.color = '#f59e0b';
+            else if (res.shame_level === 'mild') skullEl.style.color = '#fbbf24';
+            else skullEl.style.color = '#10b981';
+        }
+
+        // Render missed task pills
+        const tasksList = el('shame-missed-tasks-list');
+        const tasksSection = el('shame-tasks-section');
+        if (tasksList && res.missed_tasks && res.missed_tasks.length > 0) {
+            if (tasksSection) tasksSection.classList.remove('hidden');
+            const priorityEmoji = { high: '🔴', medium: '🟡', low: '🟢' };
+            tasksList.innerHTML = res.missed_tasks.map(t => `
+                <div class="shame-task-pill">
+                    <span class="shame-pill-icon">${priorityEmoji[t.priority] || '⚪'}</span>
+                    <span class="shame-pill-title">${escapeHTML(t.title)}</span>
+                    ${t.rollover_count > 0 ? `<span class="shame-pill-rollover">↺×${t.rollover_count}</span>` : ''}
+                </div>
+            `).join('');
+        } else {
+            if (tasksSection) tasksSection.classList.add('hidden');
+        }
+
+        // Play shame audio — deferred to dismiss button to comply with browser autoplay policy
+        // (audio.play is called in the dismiss button click handler instead)
+
+        // Show modal
+        const backdrop = el('shame-login-modal-backdrop');
+        if (backdrop) {
+            backdrop.classList.remove('hidden');
+            // Only mark as shown if modal actually appeared
+            sessionStorage.setItem('apextask_shame_shown', '1');
+        }
+
+    } catch (err) {
+        console.warn('[ShameBoardModal] Could not load shame summary:', err);
+    }
+}
+
+function closeShameBoardModal() {
+    const backdrop = document.getElementById('shame-login-modal-backdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+}
+
 // ==================== UTILITY FUNCTIONS ====================
+
 function escapeHTML(str) {
     if (!str) return '';
     return str.replace(/[&<>'"]/g, 
@@ -2363,6 +2574,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Shame Board Modal Dismiss Button
+    const btnShameDismiss = document.getElementById('btn-shame-dismiss');
+    if (btnShameDismiss) {
+        btnShameDismiss.addEventListener('click', () => {
+            audio.play('streak_loss'); // Safe here: triggered by user gesture
+            closeShameBoardModal();
+        });
+    }
+    // Allow backdrop click to dismiss shame modal
+    const shameBackdrop = document.getElementById('shame-login-modal-backdrop');
+    if (shameBackdrop) {
+        shameBackdrop.addEventListener('click', (e) => {
+            if (e.target === shameBackdrop) closeShameBoardModal();
+        });
+    }
+
     // Global Delegated Click Handler for all Task Action Buttons (Toggle, Edit, Delete, Logs)
     document.addEventListener('click', async (e) => {
         const actionBtn = e.target.closest('[data-action]');
@@ -2418,6 +2645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     keyboardController.init();
     renderGamificationHeader();
     await triggerAutoRollover(false);
+    await checkAndShowShameBoardModal();
     await Promise.all([
         loadTodayTasks(),
         loadChallenges(),
