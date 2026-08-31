@@ -1796,7 +1796,6 @@ function closeRewardChestModal() {
     if (backdrop) backdrop.classList.add('hidden');
 }
 
-
 // ==================== SECTION: SHAME BOARD ====================
 
 async function loadShameBoard() {
